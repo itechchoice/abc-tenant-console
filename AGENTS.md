@@ -11,6 +11,7 @@
 - **@tanstack/react-query** — 服务端状态与缓存（所有远端 API 请求统一走 Query）
 - **react-markdown** + **remark-gfm** + **react-syntax-highlighter** — AI 大模型输出的 Markdown 渲染方案
 - **@xyflow/react**（React Flow）— Workflow 画布与节点图可视化引擎
+- **@microsoft/fetch-event-source** — 大模型 SSE 流式通信底座（支持 POST + 自定义 Header）
 - **pnpm** 作为包管理器
 - **纯 JSX**，不使用 TypeScript
 
@@ -28,6 +29,7 @@
 - **数据请求**：所有远端 API 请求必须通过 `@tanstack/react-query` 的 `useQuery` / `useMutation` 处理，禁止在 `useEffect` 中裸写 `fetch`
 - **Markdown 渲染**：AI 输出内容统一使用 `react-markdown`，搭配 `remark-gfm`（表格/删除线）和 `react-syntax-highlighter`（代码高亮），不要自行拼接 `dangerouslySetInnerHTML`
 - **Workflow 画布**：节点图/流程编排统一基于 `@xyflow/react` 构建，不要引入其他画布库
+- **SSE 流式通信**：统一使用 `@microsoft/fetch-event-source` 处理大模型流式响应；**禁止使用 `vercel/ai`（AI SDK）的 `useChat`，也禁止使用原生 `EventSource`**
 
 ## 文件组织
 
