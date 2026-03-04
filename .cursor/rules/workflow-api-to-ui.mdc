@@ -1,0 +1,39 @@
+---
+description: 契约驱动开发：根据 API Markdown 文档全自动生成前端页面、数据流与高级 UI
+globs: ["api/**/*.md"]
+---
+
+# API 驱动的前端自动化生成规范 (Schema-Driven UI)
+
+## 核心工作流 (Agent Pipeline)
+当用户输入 `@api/xxx.md 请生成页面` 时，你必须严格按顺序执行以下 4 个步骤。禁止跳步，禁止自由发挥。
+
+### Step 1: 数据防线 (Zod Schema)
+- 读取 API 文档的 Request/Response 结构。
+- 在 `src/utils/schemas/` 目录下生成对应的 Zod Schema 文件（如 `tenantSchema.js`）。
+
+### Step 2: 服务端状态 (React Query Hook)
+- 在 `src/hooks/` 目录下创建自定义 Hook，使用 `@tanstack/react-query` 封装 API 请求。
+- 确保 Hook 内部使用了 Step 1 的 Zod Schema 进行运行时数据清洗与校验。
+- 注意处理 loading 和 error 状态。
+
+### Step 3: 页面骨架与路由 (Page & Router)
+- 在 `src/pages/` 目录下创建对应的页面级文件夹与 `index.jsx`。
+- 将该页面注册到 `src/router.jsx` 中。
+
+### Step 4: 高级 UI 渲染 (⚠️核心架构与设计绑定点)
+在开始编写任何 JSX 和 Tailwind 样式之前，你**必须强制执行**以下操作：
+
+1. **唤醒顶级前端专家角色**：静默读取并严格遵循以下 5 个核心 Skill 规范：
+   - `.agents/skills/design-taste-frontend/SKILL.md` (前端审美与留白)
+   - `.agents/skills/web-design-guidelines/SKILL.md` (Web 设计通用法则)
+   - `.agents/skills/frontend-design/SKILL.md` (前端视觉实现标准)
+   - `.agents/skills/vercel-composition-patterns/SKILL.md` (组件组合与解耦模式)
+   - `.agents/skills/vercel-react-best-practices/SKILL.md` (React 渲染与性能调优最佳实践)
+
+2. **UI 组装约束**：
+   - 必须基于上述 Skill 中的 Tailwind 最佳实践、色彩层级（Color Hierarchy）进行渲染。
+   - 必须遵循 Vercel 架构规范中的组合模式（Composition），避免传递过多的 boolean props，优先使用 `children`。
+   - 确保组件拆分合理，避免巨型组件，并在适当时机使用 `React.memo` 阻断重渲染。
+
+3. **生成式 UI 联动**：如果页面涉及复杂的对话框或大模型输出卡片，必须额外遵循 `.cursor/rules/architecture-generative-ui.mdc` 以复用现有资产。
