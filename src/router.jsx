@@ -1,4 +1,5 @@
 import { createBrowserRouter } from 'react-router-dom';
+import RootLayout from './components/RootLayout';
 import App from './App';
 import Home from './pages/Home/index';
 import Login from './pages/Login/index';
@@ -6,15 +7,21 @@ import NotFound from './pages/NotFound/index';
 
 const router = createBrowserRouter([
   {
-    path: '/login',
-    element: <Login />,
-  },
-  {
-    path: '/',
-    element: <App />,
+    element: <RootLayout />,
     children: [
-      { index: true, element: <Home /> },
-      { path: '*', element: <NotFound /> },
+      {
+        path: '/login',
+        element: <Login />,
+        handle: { title: 'Sign In' },
+      },
+      {
+        path: '/',
+        element: <App />,
+        children: [
+          { index: true, element: <Home />, handle: { title: 'Home' } },
+          { path: '*', element: <NotFound />, handle: { title: 'Page Not Found' } },
+        ],
+      },
     ],
   },
 ]);
