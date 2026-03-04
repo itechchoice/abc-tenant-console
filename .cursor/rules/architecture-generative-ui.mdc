@@ -1,6 +1,6 @@
 ---
 description: 生成式 UI (Generative UI) 与动态交互组件的架构规范
-globs: ["src/components/**/*Chat*.jsx", "src/components/GenerativeUI/**/*.jsx"]
+globs: ["src/components/**", "src/pages/**"]
 ---
 
 # 生成式 UI 与工具调用拦截架构规范
