@@ -1,0 +1,108 @@
+---
+description: Figma MCP 设计稿转代码的规则，覆盖组件组织、样式约定、设计 token、资源处理和完整工作流
+globs: ["src/components/**", "src/pages/**"]
+alwaysApply: false
+---
+
+# Figma 设计系统集成规则
+
+## 核心约束
+
+- IMPORTANT: 本项目使用**纯 JSX**（`.jsx`），不使用 TypeScript，**绝不生成 `.tsx` 文件或 TypeScript 类型标注**
+- IMPORTANT: 不需要 `import React from 'react'`（React 18 JSX transform 已自动处理）
+- IMPORTANT: 使用 `@` 路径别名（指向 `src/`），例如 `import Button from '@/components/Button'`
+
+## Figma MCP 工作流（按顺序执行，不可跳步）
+
+1. 调用 `get_design_context` 获取节点的结构化设计数据
+2. 如果响应过大或被截断，调用 `get_metadata` 获取节点层级，再按子节点分别调用 `get_design_context`
+3. 调用 `get_screenshot` 获取视觉参考截图
+4. 拿到以上数据后，下载所需的资源，开始编码实现
+5. 将 Figma MCP 输出（通常是 React + Tailwind）转换为本项目约定的代码风格
+6. 与 Figma 截图进行视觉对比验证，确保 1:1 还原后才算完成
+
+## 组件组织
+
+- 跨页面复用的通用 UI 组件放在 `src/components/`，使用 PascalCase 命名（如 `Button.jsx`、`Card.jsx`）
+- 页面按文件夹组织在 `src/pages/PageName/`，以 `index.jsx` 作为入口
+- 页面私有组件（仅当前页面使用、不通用）放在 `src/pages/PageName/components/` 中
+- 页面文件夹内的 `index.css` 仅在 TailwindCSS 无法满足时才创建
+- 自定义 Hooks 放在 `src/hooks/`
+- 工具函数放在 `src/utils/`
+- 新建组件前**必须先搜索现有组件**，优先复用和扩展，避免重复
+- 当页面私有组件开始被多个页面引用时，应提升到 `src/components/`
+
+## 样式规则
+
+- IMPORTANT: 使用 TailwindCSS v4 的 utility class 进行样式编写，**不要手写自定义 CSS**
+- TailwindCSS v4 通过 `@import "tailwindcss"` 在 `src/index.css` 中引入，没有 `tailwind.config.js`
+- 自定义 design token（颜色、字体、间距等）通过 CSS `@theme` 指令在 `src/index.css` 中定义
+- IMPORTANT: **不要硬编码颜色值**（如 `#3B82F6`），应映射到 TailwindCSS 的 token 或自定义 CSS 变量
+- Figma 中的间距和尺寸值应映射到最接近的 Tailwind 间距类（如 `p-4`、`gap-6`、`w-full`）
+- 响应式设计使用 Tailwind 断点前缀（`sm:`、`md:`、`lg:`、`xl:`）
+
+## 设计 Token 映射
+
+当 Figma 输出包含具体的颜色 / 字体 / 间距值时：
+
+1. 优先查找项目中已有的 Tailwind 类是否能匹配
+2. 如果没有匹配的 token，在 `src/index.css` 中通过 `@theme` 扩展：
+
+```css
+@theme {
+  --color-brand-primary: #3B82F6;
+  --color-brand-secondary: #10B981;
+}
+```
+
+3. 然后在组件中使用 `className="bg-brand-primary text-white"`
+
+## 图标系统
+
+- IMPORTANT: 本项目使用 **lucide-react** 作为图标库
+- 通用 UI 图标（搜索、设置、箭头、关闭等）**必须使用 lucide-react**，不要用 Figma 导出的图标图片替代
+- 用法：`import { Search, Settings, ChevronDown } from 'lucide-react'`
+- 图标通过 `className` 控制尺寸和颜色：`<Search className="size-5 text-text-secondary" />`
+- 品牌/产品专属图标（Logo、第三方服务图标等）不在 lucide-react 中的，仍从 Figma 资源获取
+- lucide-react 图标列表参考：https://lucide.dev/icons
+
+## 资源处理
+
+- IMPORTANT: Figma MCP 返回的图片/SVG 资源**必须下载到 `src/assets/` 目录**，不要在代码中使用 Figma 的在线 URL（会在 7 天后过期）
+- 图片资源存放到 `src/assets/images/`，SVG 图标存放到 `src/assets/icons/`
+- 下载后在代码中通过本地路径引用：`import logo from '@/assets/images/logo.png'`
+- 通用图标优先使用 lucide-react，仅品牌/产品专属图形资源从 Figma 下载
+- IMPORTANT: 不要用占位符替代 Figma 提供的真实资源
+
+## 组件编写规范
+
+- 使用函数式组件 + Hooks，不使用 class 组件
+- Props 使用解构参数：`function Button({ variant, size, children })`
+- 如需 props 类型校验，使用 `prop-types` 库（非必须，项目 ESLint 已关闭 prop-types 规则）
+- 组件导出使用 `export default`
+- 避免内联样式，除非是真正需要动态计算的值
+
+## 项目技术栈速查
+
+| 项目 | 值 |
+|------|------|
+| 框架 | React 18.3 |
+| 构建 | Vite 7 |
+| 样式 | TailwindCSS v4（@tailwindcss/vite 插件） |
+| 图标 | lucide-react |
+| 路由 | react-router-dom v7（createBrowserRouter） |
+| 语言 | 纯 JavaScript + JSX |
+| 包管理 | pnpm |
+| 路径别名 | `@` → `src/` |
+
+## 验证清单
+
+实现完成后，对照 Figma 截图逐项确认：
+
+- [ ] 布局匹配（间距、对齐、尺寸）
+- [ ] 字体匹配（字族、字号、字重、行高）
+- [ ] 颜色完全匹配
+- [ ] 交互状态正常（hover、active、disabled）
+- [ ] 响应式行为符合 Figma 约束
+- [ ] 资源正确渲染
+- [ ] 可访问性标准满足

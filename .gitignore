@@ -1,0 +1,12 @@
+node_modules
+dist
+build
+*.local
+
+.DS_Store
+*.sw?
+
+# Editor
+# .vscode/*
+# !.vscode/extensions.json
+# .idea

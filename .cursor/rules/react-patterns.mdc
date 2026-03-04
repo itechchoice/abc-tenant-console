@@ -1,0 +1,49 @@
+---
+description: React 组件编写模式与最佳实践
+globs: src/**/*.jsx
+alwaysApply: false
+---
+
+# React 组件规范
+
+## 组件结构
+
+一个组件文件的推荐顺序：
+
+1. 导入语句（第三方库 → 内部模块 → 样式/资源）
+2. 组件函数定义
+3. 导出语句
+
+```jsx
+import { useState } from 'react';
+import Button from '@/components/Button';
+
+function MyComponent({ title, onSubmit }) {
+  const [value, setValue] = useState('');
+
+  const handleSubmit = () => {
+    onSubmit(value);
+  };
+
+  return (
+    <div className="p-4">
+      <h2 className="text-lg font-bold">{title}</h2>
+      <Button onClick={handleSubmit}>提交</Button>
+    </div>
+  );
+}
+
+export default MyComponent;
+```
+
+## Hooks 使用
+
+- 自定义 Hook 以 `use` 开头，放在 `src/hooks/` 目录
+- 避免在 Hook 中做过多事情，保持单一职责
+- `useEffect` 的依赖数组必须完整，不要用 `// eslint-disable` 绕过
+
+## 性能
+
+- 仅在确有性能问题时才使用 `useMemo` / `useCallback`，不要预优化
+- 列表渲染必须提供稳定的 `key`，不要用数组下标
+- 大列表考虑虚拟化（react-window）
