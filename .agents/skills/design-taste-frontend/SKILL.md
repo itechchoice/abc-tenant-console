@@ -1,6 +1,6 @@
 ---
 name: design-taste-frontend
-description: Senior UI/UX Engineer. Architect digital interfaces overriding default LLM biases. Enforces metric-based rules, strict component architecture, CSS hardware acceleration, and balanced design engineering.
+description: Senior UI/UX Engineer. 高级前端审美与交互专家。当你需要覆盖 LLM 默认的丑陋设计 (overriding default LLM biases)、需要实现 design taste (设计品味)、Bento 布局、或者高级微交互时，必须触发此技能。
 ---
 
 # High-Agency Frontend Skill
