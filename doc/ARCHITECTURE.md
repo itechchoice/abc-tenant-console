@@ -102,3 +102,4 @@ src/
 * 严格遵循纯 JSX 规范与 Tailwind 优先原则。
 * 绝不擅自引入第三方竞品库（如 `vercel/ai`）。
 * 组件修改必须符合上述 ADR 架构决策。
+* **English-Only UI**：所有面向用户的界面文本（按钮、表头、Placeholder、Toast、空态文案等）必须使用专业英文，严禁在 JSX/JS 代码中出现中文字符。即使 API 文档或 Prompt 为中文，AI Agent 也必须自动翻译为地道的英文后再生成代码。

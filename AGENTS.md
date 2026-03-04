@@ -68,6 +68,7 @@ src/
 
 ## 重要约定
 
+- **UI 纯英文原则 (English-Only UI)**：项目中所有面向用户的静态文本（按钮文案、表头、Placeholder、Toast 提示语、空态文案等）**必须 100% 使用专业英文**，严禁在 JSX/JS 代码中出现任何中文字符
 - 安装依赖使用 `pnpm add`，不要使用 npm 或 yarn
 - 新增依赖时不要手动指定版本号，让 pnpm 解析最新版
 - 配置文件（`vite.config.js`、`eslint.config.js`）放在项目根目录

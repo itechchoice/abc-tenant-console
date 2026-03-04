@@ -39,3 +39,5 @@ globs: ["api/**/*.md"]
    - 确保组件拆分合理，避免巨型组件，并在适当时机使用 `React.memo` 阻断重渲染。
 
 3. **生成式 UI 联动**：如果页面涉及复杂的对话框或大模型输出卡片，必须额外遵循 `.cursor/rules/architecture-generative-ui.mdc` 以复用现有资产。
+
+4. **静默翻译指令 (English-Only UI)**：即使输入的 API Markdown 文档（字段名、业务场景描述）是中文的，生成 JSX 代码时**必须自动将所有展示在 UI 上的文本翻译为专业、地道的英文**（例如："提交" → "Submit"、"搜索" → "Search"、"暂无数据" → "No data available"）。**生成的代码中绝对不能包含中文。**

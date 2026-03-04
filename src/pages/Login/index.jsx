@@ -30,7 +30,9 @@ function Login() {
   const token = useAuthStore((s) => s.token);
   const [form, setForm] = useState({ username: '', password: '', tenantId: '' });
   const [showPassword, setShowPassword] = useState(false);
-  const { mutate: login, isPending, error, isError } = useLogin();
+  const {
+    mutate: login, isPending, error, isError,
+  } = useLogin();
 
   const handleChange = useCallback((e) => {
     const { name, value } = e.target;
