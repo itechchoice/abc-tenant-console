@@ -18,9 +18,9 @@
 
 ---
 
-## 3. 六大核心业务架构模块 (Core Modules)
+## 3. 七大核心业务架构模块 (Core Modules)
 
-为了支撑复杂的 AI 业务，我们在基础框架之上引入了六大专业技术模块：
+为了支撑复杂的 AI 业务，我们在基础框架之上引入了七大专业技术模块：
 
 ### 模块一：基础网络与鉴权层 (Networking & Auth)
 - **选型**: `axios`（封装于 `src/http/client.js`，导出全局单例 `apiClient`）
@@ -52,6 +52,12 @@
 - **选型**: `@tanstack/react-query`
 - **定位**: 接管所有非 SSE 的传统 REST API 请求（如历史记录拉取、会话列表、草稿同步）。提供开箱即用的缓存控制、自动重试与乐观更新机制。
 
+### 模块七：UI 组件体系 (Component Library)
+- **选型**: `shadcn/ui`（纯 JSX 降维版）+ `framer-motion` + `lucide-react`
+- **定位**: 采用 **"Copy & Paste 源码重塑"** 模式——不通过 NPM 包引入 shadcn 组件，而是由 AI 读取官方 TS 实现后，手动转化为带完整 JSDoc 类型声明的纯 JSX 代码，存放于 `src/components/ui/`。动画层由 `framer-motion` 提供弹簧物理动效与页面过渡；图标统一使用 `lucide-react`。
+- **架构红线**: **严禁在终端运行 `npx shadcn add <component>`**。所有组件必须经过纯 JSX 降维后方可入库，且深度融合 English-Only UI 政策与 Vercel 设计规范。
+- **工具链**: `clsx` + `tailwind-merge` 封装为 `cn()` 工具函数（`src/lib/utils.js`），用于所有组件的动态类名拼接。
+
 ---
 
 ## 4. 关键架构决策记录 (Architecture Decision Records - ADR)
@@ -79,7 +85,10 @@
 src/
   assets/              # 静态资源（图片存放至 images/，禁止使用外部过期 URL）
   components/          # 全局跨页面复用组件 (含 AppRail, Sidebar 等)
-    GenerativeUI/      # AI 动态生成的交互组件 (Tool Cards, Forms)
+    ui/              # shadcn/ui 纯 JSX 降维组件 (Button, Dialog, Input 等)
+    GenerativeUI/    # AI 动态生成的交互组件 (Tool Cards, Forms)
+  lib/
+    utils.js         # cn() 工具函数 (clsx + tailwind-merge)
   http/                # axios 封装 (client.js 导出全局 apiClient 单例)
   hooks/               # 封装后的 React Query 等自定义 Hook
   pages/               # 页面级组件 (必须以文件夹组织)

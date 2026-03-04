@@ -35,11 +35,11 @@
 
 **✅ Action Items (执行步骤)：**
 
-- [ ] **1. 无 TS 化的 shadcn 核心初始化**
+- [x] **1. 无 TS 化的 shadcn 核心初始化**
   - 在终端运行 `npx shadcn@latest init`。
   - 交互式配置严格遵守：Style 选 `New York`，Base Color 选 `Zinc`，Use CSS variables 选 `yes`，**Use TypeScript 必须选 `no`**。
 
-- [ ] **2. 部署高级动效与图标引擎**
+- [x] **2. 部署高级动效与图标引擎**
   - 运行 `pnpm add framer-motion lucide-react clsx tailwind-merge`。
   - 确保满足 `.agents/skills/design-taste-frontend` 中对“微交互”和“无 Emoji 高级图标”的硬性要求。
 

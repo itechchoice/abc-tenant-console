@@ -11,7 +11,10 @@ alwaysApply: true
 - **Vite 7** 作为构建工具
 - **TailwindCSS v4**（通过 `@tailwindcss/vite` 插件集成，无需 `tailwind.config.js`）
 - **ESLint 9**（flat config 格式，基于 Airbnb 规则并做了合理放宽）
+- **shadcn/ui**（纯 JSX 版）— 基础 UI 组件库，采用 Copy & Paste 源码重塑模式，存放于 `src/components/ui/`
+- **framer-motion** — 动画引擎（微交互、页面过渡、弹簧物理动效）
 - **lucide-react** 作为图标库
+- **clsx** + **tailwind-merge** — 动态类名拼接（封装为 `cn()` 工具函数，位于 `src/lib/utils.js`）
 - **zustand** — 复杂客户端状态管理（工作流节点交互、多轮对话等高频更新场景）
 - **@tanstack/react-query** — 服务端状态与缓存（所有远端 API 请求统一走 Query）
 - **react-markdown** + **remark-gfm** + **react-syntax-highlighter** — AI 大模型输出的 Markdown 渲染方案
@@ -49,6 +52,10 @@ src/
   App.jsx               # 根组件
   index.css             # 全局样式（含 TailwindCSS 导入）
   components/           # 跨页面复用的通用组件
+    ui/               # shadcn/ui 纯 JSX 降维组件（Button、Dialog、Input 等）
+    GenerativeUI/     # AI 动态生成的交互组件（Tool Cards、Forms）
+  lib/
+    utils.js          # cn() 工具函数（clsx + tailwind-merge）
   http/                 # axios 封装（client.js 导出全局 apiClient 单例，含 Token 注入与 401 拦截）
   hooks/                # 自定义 Hooks
   stores/               # zustand store 文件（按领域拆分，如 chatStore.js、workflowStore.js）
@@ -73,6 +80,7 @@ src/
 
 ## 重要约定
 
+- **shadcn 组件红线（最高优先级）**：**严禁在终端运行 `npx shadcn add <component>`**。项目中所有 shadcn 组件必须由 AI 读取官方 TS 源码后，手动转化为带有完美 JSDoc 注释的纯 JSX 代码，保存在 `src/components/ui/` 目录下
 - **UI 纯英文原则 (English-Only UI)**：项目中所有面向用户的静态文本（按钮文案、表头、Placeholder、Toast 提示语、空态文案等）**必须 100% 使用专业英文**，严禁在 JSX/JS 代码中出现任何中文字符
 - 安装依赖使用 `pnpm add`，不要使用 npm 或 yarn
 - 新增依赖时不要手动指定版本号，让 pnpm 解析最新版
