@@ -95,6 +95,8 @@ alwaysApply: false
 | 服务端状态/缓存 | @tanstack/react-query |
 | Markdown 渲染 | react-markdown + remark-gfm + react-syntax-highlighter |
 | Workflow 画布 | @xyflow/react（React Flow） |
+| SSE 流式通信 | @microsoft/fetch-event-source |
+| 运行时数据校验 | zod |
 | 语言 | 纯 JavaScript + JSX |
 | 包管理 | pnpm |
 | 路径别名 | `@` → `src/` |

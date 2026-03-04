@@ -12,6 +12,7 @@
 - **react-markdown** + **remark-gfm** + **react-syntax-highlighter** — AI 大模型输出的 Markdown 渲染方案
 - **@xyflow/react**（React Flow）— Workflow 画布与节点图可视化引擎
 - **@microsoft/fetch-event-source** — 大模型 SSE 流式通信底座（支持 POST + 自定义 Header）
+- **zod** — 运行时数据校验（纯 JSX 项目中替代 TypeScript 的类型安全防线）
 - **pnpm** 作为包管理器
 - **纯 JSX**，不使用 TypeScript
 
@@ -30,6 +31,7 @@
 - **Markdown 渲染**：AI 输出内容统一使用 `react-markdown`，搭配 `remark-gfm`（表格/删除线）和 `react-syntax-highlighter`（代码高亮），不要自行拼接 `dangerouslySetInnerHTML`
 - **Workflow 画布**：节点图/流程编排统一基于 `@xyflow/react` 构建，不要引入其他画布库
 - **SSE 流式通信**：统一使用 `@microsoft/fetch-event-source` 处理大模型流式响应；**禁止使用 `vercel/ai`（AI SDK）的 `useChat`，也禁止使用原生 `EventSource`**
+- **数据校验**：所有远端复杂配置（Workflow nodes/edges 等）和大模型生成的结构化 JSON，在进入业务组件或写入 Store **之前**必须通过 `zod` schema 校验；解析 AI 返回数据时若校验失败，必须在 Store 层 `try-catch` 捕获，**禁止让异常导致 React 渲染树崩溃（白屏）**；zod schema 是该数据结构的唯一事实来源（SSOT），配合 JSDoc 标注函数入参
 
 ## 文件组织
 
@@ -41,6 +43,7 @@ src/
   components/           # 跨页面复用的通用组件
   hooks/                # 自定义 Hooks
   stores/               # zustand store 文件（按领域拆分，如 chatStore.js、workflowStore.js）
+  schemas/              # zod schema 定义（按领域拆分，如 workflowSchema.js、chatSchema.js）
   pages/                # 页面级组件（按文件夹组织）
     Home/
       index.jsx         # 页面入口
