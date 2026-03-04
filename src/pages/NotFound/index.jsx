@@ -88,13 +88,13 @@ function NotFound() {
           </div>
 
           <h1 className="text-4xl md:text-5xl font-bold tracking-tight text-navy-900 leading-[1.08]">
-            此页面
+            Page
             <br />
-            <span className="text-brand">不存在</span>
+            <span className="text-brand">not found</span>
           </h1>
 
           <p className="mt-5 text-base text-text-secondary leading-relaxed max-w-[46ch]">
-            你访问的页面可能已被移除、名称已更改，或暂时无法访问。请检查链接是否正确。
+            The page you're looking for may have been removed, renamed, or is temporarily unavailable. Please check the URL.
           </p>
 
           <Link
@@ -111,7 +111,7 @@ function NotFound() {
               className="w-4 h-4 transition-transform duration-200 group-hover:-translate-x-0.5"
               strokeWidth={1.5}
             />
-            返回首页
+            Back to Home
           </Link>
         </div>
       </div>

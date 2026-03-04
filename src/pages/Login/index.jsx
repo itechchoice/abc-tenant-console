@@ -49,7 +49,7 @@ function Login() {
   };
 
   const errorMessage = isError
-    ? error?.message || '登录失败，请检查账号密码'
+    ? error?.message || 'Login failed. Please check your credentials.'
     : null;
 
   const canSubmit = form.username && form.password && form.tenantId;
