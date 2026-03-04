@@ -1,0 +1,86 @@
+---
+description: LLM 流式通信与复杂 Agent 状态管理的架构规范与唯一最佳实践
+globs: ["src/stores/**/*.js", "src/components/**/*Chat*.jsx", "src/hooks/**/*.js"]
+---
+
+# LLM 流式通信与状态管理架构规范
+
+## 核心架构决策 (Architecture Decision)
+
+在处理大模型流式对话（Streaming）以及工作流状态时，**严禁使用原生的 `EventSource`、原生的 `fetch`，也禁止使用 `ai` (Vercel AI SDK) 的 `useChat`。**
+
+本项目的**唯一最佳实践**是：
+**采用 `@microsoft/fetch-event-source` 结合 `zustand` 进行精确的事件拦截和全局状态派发。**
+
+## 为什么做出此决断？
+
+后端的 SSE 接口 (`/chat/stream`) 返回的数据格式非标准的 OpenAI 规范，而是为支持大型 Agent 工作流定制的深度协议：
+1. **数据结构差异**：流式吐字事件为 `message_chunk`，内容存放在 `data.content` 中。
+2. **丰富的生命周期**：包含 `workflow_pending`、`node_pending`、`node_complete` 等复杂的工作流执行状态。
+3. **特殊的交互打断机制**：包含 `client_interaction` 事件，要求前端动态渲染表单并中断当前 SSE 连接。
+
+以上复杂场景超出了现有标准 AI 库的承载范围，必须在前端实现定制化的底层通信与状态路由引擎。
+
+## 代码实现规范与约束
+
+### 1. 状态管理 (Zustand)
+必须使用 `zustand` 创建专门的 Store（如 `useAgentChatStore`），集中管理以下状态：
+- **对话状态**：`messages` 数组，用于渲染气泡。
+- **UI 交互状态**：`isTyping` (是否正在回复)。
+- **工作流/Agent 状态**：`currentWorkflowId` (当前工作流)、`activeNodeId` (当前高亮节点) 等。
+
+### 2. SSE 请求库 (@microsoft/fetch-event-source)
+发起对话请求时，必须使用 `@microsoft/fetch-event-source` 的 `fetchEventSource` 方法，并配置 `method: 'POST'`。
+
+### 3. 精确的事件路由拦截 (Event Router)
+在 `onmessage` 回调中，必须通过 `switch (ev.event)` 对后端的自定义事件进行精准拦截和分发：
+
+```javascript
+// 标准状态派发路由示例
+switch (ev.event) {
+  case 'start':
+    // 请求开始
+    set({ isTyping: true });
+    break;
+  case 'session':
+    // 记录 sessionId
+    break;
+  case 'message_chunk':
+    // 实时追加字数到最后一条 message
+    break;
+  case 'message':
+    // 单次模型调用完成（包含完整内容）
+    break;
+  case 'tool_call':
+    // 工具调用开始，渲染等待 UI
+    break;
+  case 'workflow_pending':
+  case 'node_pending':
+    // 工作流与节点执行状态同步
+    break;
+  case 'complete':
+    // 流程彻底结束
+    set({ isTyping: false });
+    break;
+  case 'client_interaction':
+    // 触发打断，渲染交互组件，并抛弃当前连接
+    break;
+  case 'error':
+    // 统一错误处理
+    break;
+}
+
+## AI Agent 行为准则
+
+当用户要求“实现对话功能”、“对接聊天接口”、“处理流式输出”时，AI Agent 必须：
+
+1. 检查 `package.json` 是否已安装 `@microsoft/fetch-event-source` 和 `zustand`。
+2. 严格按照上述 `switch-case` 的路由模式解析后端发来的 SSE Event。
+3. **绝对不要**尝试引入或使用 `vercel/ai`。
+4. **绝对不要**自己发明新的状态管理模式，一切状态变动必须通过 `zustand` 的 `set` 或 `get()` 函数派发。
+
+## 架构师的下一步建议：
+
+把这份规则保存进 `.cursor/rules/` 目录后，下次你只要在 Cursor 里对 Agent 说：“**帮我实现 `src/stores/chatStore.js`**”，Agent 就会自动读取这份文档，并且完美写出包含那十几个 `case` 的 Zustand 代码，连一个字都不会错！
+
+你要不要现在就去保存一下？保存完成后，你想先让 Agent 帮你把底层的 `chatStore.js` 写出来，还是先把界面的 UI 骨架再细化一下？

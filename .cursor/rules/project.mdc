@@ -12,6 +12,10 @@ alwaysApply: true
 - **TailwindCSS v4**（通过 `@tailwindcss/vite` 插件集成，无需 `tailwind.config.js`）
 - **ESLint 9**（flat config 格式，基于 Airbnb 规则并做了合理放宽）
 - **lucide-react** 作为图标库
+- **zustand** — 复杂客户端状态管理（工作流节点交互、多轮对话等高频更新场景）
+- **@tanstack/react-query** — 服务端状态与缓存（所有远端 API 请求统一走 Query）
+- **react-markdown** + **remark-gfm** + **react-syntax-highlighter** — AI 大模型输出的 Markdown 渲染方案
+- **@xyflow/react**（React Flow）— Workflow 画布与节点图可视化引擎
 - **pnpm** 作为包管理器
 - **纯 JSX**，不使用 TypeScript
 
@@ -25,6 +29,10 @@ alwaysApply: true
 - 样式优先使用 TailwindCSS 的 utility class，避免手写 CSS
 - `console.log` 可保留用于调试（ESLint 仅 warn），但提交前应清理
 - 不需要 `import React from 'react'`（React 18 JSX transform 已自动处理）
+- **状态管理**：跨组件/高频更新的客户端状态使用 zustand（store 文件放 `src/stores/`）；简单的局部 UI 状态仍用 `useState`
+- **数据请求**：所有远端 API 请求必须通过 `@tanstack/react-query` 的 `useQuery` / `useMutation` 处理，禁止在 `useEffect` 中裸写 `fetch`
+- **Markdown 渲染**：AI 输出内容统一使用 `react-markdown`，搭配 `remark-gfm`（表格/删除线）和 `react-syntax-highlighter`（代码高亮），不要自行拼接 `dangerouslySetInnerHTML`
+- **Workflow 画布**：节点图/流程编排统一基于 `@xyflow/react` 构建，不要引入其他画布库
 
 ## 文件组织
 
@@ -35,6 +43,7 @@ src/
   index.css             # 全局样式（含 TailwindCSS 导入）
   components/           # 跨页面复用的通用组件
   hooks/                # 自定义 Hooks
+  stores/               # zustand store 文件（按领域拆分，如 chatStore.js、workflowStore.js）
   pages/                # 页面级组件（按文件夹组织）
     Home/
       index.jsx         # 页面入口

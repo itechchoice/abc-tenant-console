@@ -11,10 +11,16 @@
     "lint:fix": "eslint . --fix"
   },
   "dependencies": {
+    "@tanstack/react-query": "^5.90.21",
+    "@xyflow/react": "^12.10.1",
     "lucide-react": "^0.575.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "react-router-dom": "^7.13.1"
+    "react-markdown": "^10.1.0",
+    "react-router-dom": "^7.13.1",
+    "react-syntax-highlighter": "^16.1.1",
+    "remark-gfm": "^4.0.1",
+    "zustand": "^5.0.11"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.2.1",

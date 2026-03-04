@@ -91,6 +91,10 @@ alwaysApply: false
 | 样式 | TailwindCSS v4（@tailwindcss/vite 插件） |
 | 图标 | lucide-react |
 | 路由 | react-router-dom v7（createBrowserRouter） |
+| 客户端状态 | zustand |
+| 服务端状态/缓存 | @tanstack/react-query |
+| Markdown 渲染 | react-markdown + remark-gfm + react-syntax-highlighter |
+| Workflow 画布 | @xyflow/react（React Flow） |
 | 语言 | 纯 JavaScript + JSX |
 | 包管理 | pnpm |
 | 路径别名 | `@` → `src/` |
