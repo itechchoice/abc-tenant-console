@@ -1,0 +1,26 @@
+---
+description: React Flow 复杂节点工作流引擎的性能优化与架构规范
+globs: ["src/components/**/*Node*.jsx", "src/components/**/*Flow*.jsx", "src/pages/**/*Workflow*.jsx"]
+---
+
+# 工作流引擎 (React Flow) 架构与性能规范
+
+## 核心架构决策 (Architecture Decision)
+本项目使用 `@xyflow/react` (React Flow) 作为工作流可视化编排引擎。由于工作流节点可能非常庞大，**严禁在顶层组件裸写 `useState` 来管理极其频繁更新的 `nodes` 和 `edges`。**
+
+本项目的**唯一最佳实践**是：
+**将 React Flow 的核心状态托管至 Zustand，并对所有自定义节点强制实施 Memo 化。**
+
+## 详细约束与 AI Agent 行为准则
+
+### 1. 状态托管 (Zustand 集成)
+- **禁止本地状态**：不要在 `<ReactFlow />` 的父组件中使用 `const [nodes, setNodes] = useState(...)`。
+- **架构模式**：必须在 `src/stores/workflowStore.js` 中创建专门的 Zustand 切片，包含 `nodes`, `edges`, `onNodesChange`, `onEdgesChange`, `onConnect` 等核心状态和方法，严格遵循 React Flow 官方推荐的 Zustand 状态管理模式。
+
+### 2. 自定义节点性能防线 (Custom Nodes)
+- **强制 Memo**：所有注册到 `nodeTypes` 的自定义节点组件（Custom Node Components），**必须**被 `React.memo` 包裹。如果不包裹，画布上的任何微小交互（如平移、缩放）都会导致所有节点重新渲染，引发严重的性能灾难。
+- **浅层数据提取**：在自定义节点内部使用 Zustand Store 时，必须使用选择器（Selector）配合 `useShallow` 获取极其精确的颗粒度数据，禁止直接读取整个 Store 对象。
+
+### 3. 连线点 (Handles) 稳定性约束
+- 自定义节点内部的 `<Handle />` 组件必须拥有固定的、语义化的 `id`（例如：`id="source-output-1"`），严禁使用随机字符串或索引作为 Handle ID，否则会导致连线在重渲染时断开或错乱。
+- 保证 Handle 的绝对定位样式不会因为节点内部内容的折叠/展开而发生偏移。

@@ -1,0 +1,25 @@
+---
+description: Zustand 全局状态与 TanStack Query 服务端缓存的架构边界规范
+globs: ["src/stores/**/*.js", "src/hooks/**/*.js", "src/components/**/*.jsx", "src/pages/**/*.jsx"]
+---
+
+# 状态管理与数据拉取架构规范
+
+## 核心架构决策 (Architecture Decision)
+本项目采用双引擎驱动状态管理，严禁混用或错误使用数据流。
+- **客户端交互状态 (Client State)** 唯一指定库：`zustand`
+- **服务端缓存状态 (Server State)** 唯一指定库：`@tanstack/react-query`
+
+## 详细约束与 AI Agent 行为准则
+
+### 1. Zustand 使用边界 (禁止滥用)
+- **适用场景**：仅用于存放纯前端的、跨组件共享的 UI 交互状态（例如：`isSidebarOpen`, `activeNodeId`, 当前正在打字的 `messages` 流）。
+- **绝对禁区**：**禁止**将远端数据库获取的静态或长效数据（如用户配置、历史会话列表、工作流模板库）存入 Zustand Store。
+- **架构模式**：采用 Slice Pattern 拆分大型 Store。不要使用 React Context 来做状态传递。
+
+### 2. TanStack React Query 使用边界
+- **适用场景**：所有非流式 (Non-SSE) 的异步远端 API 请求，必须封装为自定义 Hook（如 `useConversationHistory`），并在内部调用 `useQuery` 或 `useMutation`。
+- **架构约束**：禁止在 React 组件内裸写 `useEffect` 去 `fetch` 数据并 `setState`。所有副作用拉取必须交给 React Query 处理。
+
+### 3. 数据层桥接 (Store & Query 联动)
+- 当发生远端数据变更（Mutation 成功）需要清空本地 UI 状态时，应当在业务组件的 `onSuccess` 回调中调用 Zustand 的 `reset` 或 `set` 方法，保持两大生态的解耦。
