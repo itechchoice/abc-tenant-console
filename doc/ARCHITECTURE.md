@@ -26,6 +26,9 @@
 - **选型**: `axios`（封装于 `src/http/client.js`，导出全局单例 `apiClient`）
 - **定位**: 所有常规 RESTful API 请求（增删改查、登录、配置拉取等）的**唯一出口**。内置 Token 自动注入（request interceptor）与 401 未授权拦截（response interceptor）。登录态通过 `src/stores/authStore.js` 使用 zustand `persist` 中间件持久化。
 - **架构红线**: 常规 HTTP 请求**严禁裸写 `fetch` 或直接 `axios.get`**，必须统一使用 `import { apiClient } from '@/http/client'`。大模型 SSE 流式通信则严格走 `@microsoft/fetch-event-source`，两条通道各司其职、互不混用。
+- **路由接力机制**: 请求 URL 经过三级接力到达真实后端：`Axios baseURL (/api)` → `Vite Proxy 拦截 (/api)` → `Rewrite 重写为 (/api/v1)` → 真实后端。因此代码中**严禁携带 `/api` 或 `/v1` 前缀**，只写纯业务路径：
+  - ❌ `apiClient.get('/api/v1/users')` — 会导致 404
+  - ✅ `apiClient.get('/users')` — 正确写法
 
 ### 模块二：LLM 流式通信引擎 (Streaming Networking)
 - **选型**: `@microsoft/fetch-event-source`

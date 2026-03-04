@@ -32,12 +32,12 @@ function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const { mutate: login, isPending, error, isError } = useLogin();
 
-  if (token) return <Navigate to="/" replace />;
-
   const handleChange = useCallback((e) => {
     const { name, value } = e.target;
     setForm((prev) => ({ ...prev, [name]: value }));
   }, []);
+
+  if (token) return <Navigate to="/" replace />;
 
   const handleSubmit = (e) => {
     e.preventDefault();

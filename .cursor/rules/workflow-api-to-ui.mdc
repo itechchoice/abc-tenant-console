@@ -15,6 +15,7 @@ globs: ["api/**/*.md"]
 ### Step 2: 服务端状态 (React Query Hook)
 - 在 `src/hooks/` 目录下创建自定义 Hook，使用 `@tanstack/react-query` 封装 API 请求。
 - **强制约束**：必须统一引入 `import { apiClient } from '@/http/client'` 来发起请求，**禁止使用原生 `fetch` 或直接 `axios.get`**。
+- **路径前缀剥离原则（红线）**：编写 `apiClient.get()` / `.post()` 时，必须将 API 文档中的原始路径**剥离掉所有 `/api/v1`、`/api` 或 `/v1` 前缀**，只保留纯净的业务路径。例如：文档写 `/api/v1/tenants/list`，代码中**绝对只能写** `apiClient.get('/tenants/list')`。**严禁在代码的请求 URL 中出现 `v1` 或 `api` 字样！**（底层 Axios baseURL + Vite Proxy 已接管路由重写）
 - 确保 Hook 内部使用了 Step 1 的 Zod Schema 进行运行时数据清洗与校验。
 - 注意处理 loading 和 error 状态。
 
