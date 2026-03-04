@@ -18,29 +18,34 @@
 
 ---
 
-## 3. 五大核心业务架构模块 (Core Modules)
+## 3. 六大核心业务架构模块 (Core Modules)
 
-为了支撑复杂的 AI 业务，我们在基础框架之上引入了五大专业技术模块：
+为了支撑复杂的 AI 业务，我们在基础框架之上引入了六大专业技术模块：
 
-### 模块一：LLM 流式通信引擎 (Streaming Networking)
+### 模块一：基础网络与鉴权层 (Networking & Auth)
+- **选型**: `axios`（封装于 `src/http/client.js`，导出全局单例 `apiClient`）
+- **定位**: 所有常规 RESTful API 请求（增删改查、登录、配置拉取等）的**唯一出口**。内置 Token 自动注入（request interceptor）与 401 未授权拦截（response interceptor）。登录态通过 `src/stores/authStore.js` 使用 zustand `persist` 中间件持久化。
+- **架构红线**: 常规 HTTP 请求**严禁裸写 `fetch` 或直接 `axios.get`**，必须统一使用 `import { apiClient } from '@/http/client'`。大模型 SSE 流式通信则严格走 `@microsoft/fetch-event-source`，两条通道各司其职、互不混用。
+
+### 模块二：LLM 流式通信引擎 (Streaming Networking)
 - **选型**: `@microsoft/fetch-event-source`
 - **定位**: 替代原生的 `fetch` 和 `EventSource`，专职处理携带复杂 Body 的 `POST` 请求以及 Server-Sent Events (SSE) 流式响应。
 - **架构决策**: 明确**禁止使用 Vercel AI SDK (`ai`)**。因为后端提供了深度定制的 Agent 生命周期协议（如 `message_chunk`, `workflow_pending`, `client_interaction`），必须由前端实现一套精细化的事件路由分发器。
 
-### 模块二：复杂状态管理与同步 (Global State Management)
+### 模块三：复杂状态管理与同步 (Global State Management)
 - **选型**: `zustand`
 - **定位**: 替代 React Context 解决高频渲染问题。
 - **职责**: 负责承载跨组件的会话数据 (`messages`)、UI 交互打断状态，以及 React Flow 画布中节点运行的实时高亮状态。
 
-### 模块三：工作流可视化引擎 (Workflow Engine)
+### 模块四：工作流可视化引擎 (Workflow Engine)
 - **选型**: `@xyflow/react` (原 React Flow)
 - **定位**: 支撑 AI 生成的可视化工作流。提供无限画布、节点拖拽、连线逻辑以及缩放引擎，作为 Agent 逻辑编排的视觉出口。
 
-### 模块四：生成式 UI 与富文本渲染 (Generative UI & Markdown)
+### 模块五：生成式 UI 与富文本渲染 (Generative UI & Markdown)
 - **选型**: `react-markdown` + `remark-gfm` + `react-syntax-highlighter`
 - **定位**: 将大模型吐出的纯文本转化为高质量的视觉组件。不仅支持标准 Markdown、代码块高亮与表格，更通过组件分发机制，支持动态渲染“工具调用卡片 (Tool Call Card)”和“用户交互表单 (Interaction Form)”。
 
-### 模块五：服务端状态与缓存调度 (Server State & Caching)
+### 模块六：服务端状态与缓存调度 (Server State & Caching)
 - **选型**: `@tanstack/react-query`
 - **定位**: 接管所有非 SSE 的传统 REST API 请求（如历史记录拉取、会话列表、草稿同步）。提供开箱即用的缓存控制、自动重试与乐观更新机制。
 
@@ -72,6 +77,7 @@ src/
   assets/              # 静态资源（图片存放至 images/，禁止使用外部过期 URL）
   components/          # 全局跨页面复用组件 (含 AppRail, Sidebar 等)
     GenerativeUI/      # AI 动态生成的交互组件 (Tool Cards, Forms)
+  http/                # axios 封装 (client.js 导出全局 apiClient 单例)
   hooks/               # 封装后的 React Query 等自定义 Hook
   pages/               # 页面级组件 (必须以文件夹组织)
     Home/              

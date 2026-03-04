@@ -18,6 +18,7 @@ alwaysApply: true
 - **@xyflow/react**（React Flow）— Workflow 画布与节点图可视化引擎
 - **@microsoft/fetch-event-source** — 大模型 SSE 流式通信底座（支持 POST + 自定义 Header）
 - **zod** — 运行时数据校验（纯 JSX 项目中替代 TypeScript 的类型安全防线）
+- **axios** — 常规 HTTP 请求底层（封装于 `src/http/client.js`，含 Token 注入与 401 拦截）
 - **pnpm** 作为包管理器
 - **纯 JSX**，不使用 TypeScript
 
@@ -33,6 +34,7 @@ alwaysApply: true
 - 不需要 `import React from 'react'`（React 18 JSX transform 已自动处理）
 - **状态管理**：跨组件/高频更新的客户端状态使用 zustand（store 文件放 `src/stores/`）；简单的局部 UI 状态仍用 `useState`
 - **数据请求**：所有远端 API 请求必须通过 `@tanstack/react-query` 的 `useQuery` / `useMutation` 处理，禁止在 `useEffect` 中裸写 `fetch`
+- **网络请求红线**：常规 HTTP 请求必须统一使用 `import { apiClient } from '@/http/client'`，**禁止裸写 `fetch` 或直接 `axios.get`**；大模型 SSE 流式请求走 `@microsoft/fetch-event-source`，两条通道互不混用
 - **Markdown 渲染**：AI 输出内容统一使用 `react-markdown`，搭配 `remark-gfm`（表格/删除线）和 `react-syntax-highlighter`（代码高亮），不要自行拼接 `dangerouslySetInnerHTML`
 - **Workflow 画布**：节点图/流程编排统一基于 `@xyflow/react` 构建，不要引入其他画布库
 - **SSE 流式通信**：统一使用 `@microsoft/fetch-event-source` 处理大模型流式响应；**禁止使用 `vercel/ai`（AI SDK）的 `useChat`，也禁止使用原生 `EventSource`**
@@ -46,6 +48,7 @@ src/
   App.jsx               # 根组件
   index.css             # 全局样式（含 TailwindCSS 导入）
   components/           # 跨页面复用的通用组件
+  http/                 # axios 封装（client.js 导出全局 apiClient 单例，含 Token 注入与 401 拦截）
   hooks/                # 自定义 Hooks
   stores/               # zustand store 文件（按领域拆分，如 chatStore.js、workflowStore.js）
   schemas/              # zod schema 定义（按领域拆分，如 workflowSchema.js、chatSchema.js）
