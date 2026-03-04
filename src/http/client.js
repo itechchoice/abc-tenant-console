@@ -22,10 +22,8 @@ apiClient.interceptors.request.use(
 
 // 响应拦截器：全局错误处理与 401 登出
 apiClient.interceptors.response.use(
-  (response) =>
-    // 假设你们后端的统一返回结构是 { code, data, message }
-    // 这里可以直接剥离外层，返回具体数据
-    response.data,
+  // 假设后端统一返回结构是 { code, data, message }，直接剥离外层返回具体数据
+  (response) => response.data,
   (error) => {
     // 拦截 401 未授权错误
     if (error.response?.status === 401) {
