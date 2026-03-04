@@ -72,11 +72,3 @@ export default function MessageList({ messages }) {
 1. **遵循分发模式**：所有的动态 UI 必须作为一个独立组件存放在 `src/components/GenerativeUI/` 目录下，并在 `MessageList` 中通过 `type` 进行分发引入。
 2. **拒绝 RSC**：绝对不要尝试使用或引入 `React Server Components` 的相关代码或 Vercel 的 `@vercel/ui` 预设包。
 3. **数据安全防线**：在 `InteractionForm` 或复杂的 `ToolCallCard` 组件内部，接收到的 `args` 或 `widgets` 属性，必须通过 `zod` 进行运行时结构校验，防止后端/大模型下发的数据残缺导致白屏报错。
-
-## 架构师的总结
-
-保存好这份文档后，你的项目就彻底打通了**“从底层数据流” -> “到中间状态管理” -> “再到顶层动态 UI 渲染”**的全链路闭环。
-
-接下来，你可以直接唤醒 Cursor Agent，让它根据我们定好的这三份核心架构规则（SSE 通信、Zod 校验、生成式 UI 分发），去帮你把 `src/stores/chatStore.js` 和 `src/components/ChatMain.jsx` 的真实代码写出来了！
-
-祝你的 AI Agent Workflow 项目开发顺利，如果有任何代码落地时的细节问题，随时找我！

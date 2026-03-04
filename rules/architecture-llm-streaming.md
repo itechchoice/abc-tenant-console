@@ -78,9 +78,3 @@ switch (ev.event) {
 2. 严格按照上述 `switch-case` 的路由模式解析后端发来的 SSE Event。
 3. **绝对不要**尝试引入或使用 `vercel/ai`。
 4. **绝对不要**自己发明新的状态管理模式，一切状态变动必须通过 `zustand` 的 `set` 或 `get()` 函数派发。
-
-## 架构师的下一步建议：
-
-把这份规则保存进 `.cursor/rules/` 目录后，下次你只要在 Cursor 里对 Agent 说：“**帮我实现 `src/stores/chatStore.js`**”，Agent 就会自动读取这份文档，并且完美写出包含那十几个 `case` 的 Zustand 代码，连一个字都不会错！
-
-你要不要现在就去保存一下？保存完成后，你想先让 Agent 帮你把底层的 `chatStore.js` 写出来，还是先把界面的 UI 骨架再细化一下？
