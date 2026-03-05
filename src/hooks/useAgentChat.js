@@ -82,7 +82,18 @@ export function useAgentChat(options = {}) {
       const {
         addMessage, updateMessage, setTyping, setWorkflowInfo,
         setCurrentSessionId, currentSessionId,
+        chatMode, selectedAgentId, selectedModel,
       } = useChatStore.getState();
+
+      // ── Defensive pre-flight checks ────────────────────────────────
+      if (chatMode === 'agent' && !selectedAgentId) {
+        console.warn('[useAgentChat] Agent mode requires a selected agentId — request blocked.');
+        return;
+      }
+      if (chatMode === 'model' && !selectedModel) {
+        console.warn('[useAgentChat] Model mode requires a selected model — request blocked.');
+        return;
+      }
 
       controllerRef.current?.abort();
       const controller = new AbortController();
@@ -111,10 +122,15 @@ export function useAgentChat(options = {}) {
 
       let streamedContent = '';
 
-      // ── SSE connection ─────────────────────────────────────────────
+      // ── Build mode-aware payload (ENGINE_API POST /chat) ───────────
       const baseUrl = import.meta.env.VITE_API_BASE_URL || '/api';
       const sessionId = metadata.sessionId || currentSessionId || undefined;
       const tenantId = userInfo?.tenantId;
+
+      const payload = { message: content };
+      if (sessionId) payload.sessionId = sessionId;
+      if (chatMode === 'agent') payload.agentId = selectedAgentId;
+      if (chatMode === 'model') payload.modelId = selectedModel.id;
 
       try {
         await fetchEventSource(`${baseUrl}${SSE_ENDPOINT}`, {
@@ -124,11 +140,7 @@ export function useAgentChat(options = {}) {
             ...(token ? { Authorization: `Bearer ${token}` } : {}),
             ...(tenantId ? { 'X-Tenant-Id': tenantId } : {}),
           },
-          body: JSON.stringify({
-            agentId: metadata.agentId || 'default',
-            ...(sessionId ? { sessionId } : {}),
-            message: content,
-          }),
+          body: JSON.stringify(payload),
           signal: controller.signal,
 
           // ── onopen ─────────────────────────────────────────────────

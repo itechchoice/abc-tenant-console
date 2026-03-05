@@ -30,6 +30,13 @@ import { create } from 'zustand';
  * @property {AssignedProvider | null} selectedModel
  *   Currently selected LLM provider for the chat input.  Persists across
  *   `clearChat` calls as a workspace-level preference.
+ * @property {'auto' | 'agent' | 'model'} chatMode
+ *   Active chat dispatch mode per ENGINE_API `POST /chat`:
+ *   - `auto`  – no agentId / modelId, backend auto-routes.
+ *   - `agent` – sends `agentId`, full orchestration pipeline.
+ *   - `model` – sends `modelId`, direct LLM call.
+ * @property {string | null} selectedAgentId
+ *   Target agent identifier for `chatMode === 'agent'`.
  */
 
 /**
@@ -54,6 +61,10 @@ import { create } from 'zustand';
  *   ID in a single render batch.
  * @property {(model: AssignedProvider | null) => void} setSelectedModel
  *   Set or clear the active LLM provider for the chat input.
+ * @property {(mode: 'auto' | 'agent' | 'model') => void} setChatMode
+ *   Switch the chat dispatch mode.
+ * @property {(id: string | null) => void} setSelectedAgentId
+ *   Set or clear the target agent for agent mode.
  * @property {() => void} clearChat
  *   Reset conversation-level state to initial values.  `selectedModel`
  *   is deliberately **not** reset (workspace-level preference).
@@ -101,6 +112,8 @@ const INITIAL_STATE = {
 export const useChatStore = create((set) => ({
   ...INITIAL_STATE,
   selectedModel: null,
+  chatMode: 'auto',
+  selectedAgentId: null,
 
   setMessages: (messages) => set({ messages }),
 
@@ -122,6 +135,10 @@ export const useChatStore = create((set) => ({
   }),
 
   setSelectedModel: (model) => set({ selectedModel: model }),
+
+  setChatMode: (mode) => set({ chatMode: mode }),
+
+  setSelectedAgentId: (id) => set({ selectedAgentId: id }),
 
   clearChat: () => set(INITIAL_STATE),
 }));
