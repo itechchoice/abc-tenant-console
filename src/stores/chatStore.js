@@ -30,6 +30,9 @@ import { create } from 'zustand';
  * Imperative actions exposed by the chat store.
  *
  * @typedef {object} ChatActions
+ * @property {(messages: Message[]) => void} setMessages
+ *   Replace the entire message list with a pre-built array.  Used when
+ *   loading a persisted conversation from the server (history restore).
  * @property {(message: Message) => void} addMessage
  *   Append a fully-formed message to the end of the conversation.
  * @property {(id: string, patch: Partial<Message>) => void} updateMessage
@@ -85,6 +88,8 @@ const INITIAL_STATE = {
  */
 export const useChatStore = create((set) => ({
   ...INITIAL_STATE,
+
+  setMessages: (messages) => set({ messages }),
 
   addMessage: (message) => set((state) => ({
     messages: [...state.messages, message],

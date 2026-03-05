@@ -24,10 +24,10 @@
 ## 核心基建阶段 (Core Infrastructure)
 
 ### 阶段一：底层状态与通信引擎 (State & Networking)
-- [ ] **创建全局 Agent 状态树**：在 `src/stores/chatStore.js` 中使用 `zustand` 初始化状态（`messages`, `isTyping`, `currentWorkflowId`, `activeNodeId` 等）。
-- [ ] **实现定制化 SSE 客户端**：基于 `@microsoft/fetch-event-source` 实现 `sendMessage` 方法，支持 POST 请求与 Body 传递。
-- [ ] **打通事件路由分发层 (Event Router)**：在 SSE 的 `onmessage` 回调中，编写完整的 `switch-case` 路由，精准拦截后端的 15 种自定义事件（如 `message_chunk`, `tool_call`, `workflow_pending`, `client_interaction` 等）。
-- [ ] **实现历史会话同步**：引入 `@tanstack/react-query`，编写加载历史会话列表和单次会话详情的查询 Hook，并与 Zustand Store 结合。
+- [x] **创建全局 Agent 状态树**：在 `src/stores/chatStore.js` 中使用 `zustand` 初始化状态（`messages`, `isTyping`, `currentWorkflowId`, `activeNodeId` 等）。
+- [x] **实现定制化 SSE 客户端**：基于 `@microsoft/fetch-event-source` 实现 `sendMessage` 方法，支持 POST 请求与 Body 传递。
+- [x] **打通事件路由分发层 (Event Router)**：在 SSE 的 `onmessage` 回调中，编写完整的 `switch-case` 路由，精准拦截后端的 15 种自定义事件（如 `message_chunk`, `tool_call`, `workflow_pending`, `client_interaction` 等）。
+- [x] **实现历史会话同步**：引入 `@tanstack/react-query`，编写加载历史会话列表和单次会话详情的查询 Hook，并与 Zustand Store 结合。
 
 ### 阶段二：数据安全防线 (Runtime Validation)
 - [ ] **建立 Zod Schema 注册表**：在 `src/utils/schemas/` 目录下，为大模型常用的输出数据结构定义 Zod Schema（特别是 Tool Call 的 `args` 结构）。
