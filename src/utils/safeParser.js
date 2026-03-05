@@ -1,5 +1,3 @@
-import { z } from 'zod';
-
 // ---------------------------------------------------------------------------
 // Return-type typedefs
 // ---------------------------------------------------------------------------
@@ -21,7 +19,7 @@ import { z } from 'zod';
  * @property {string} error
  *   One of `'Invalid JSON format'` | `'Schema validation failed'` |
  *   `'Unexpected parse error'`.
- * @property {z.ZodError} [details]
+ * @property {import('zod').ZodError} [details]
  *   Present only when `error === 'Schema validation failed'`.
  *   Contains per-field issue descriptors useful for UI error rendering.
  * @property {string} raw – The original `jsonString` for diagnostics.
@@ -47,7 +45,7 @@ import { z } from 'zod';
  * tree crash (white-screen).
  *
  * @param {string} jsonString – Raw JSON text to parse.
- * @param {z.ZodType | null} [schema=null]
+ * @param {import('zod').ZodType | null} [schema=null]
  *   Optional Zod schema.  When provided, the parsed object is validated
  *   against it via `safeParse`.  When omitted, only `JSON.parse` is run.
  * @returns {SafeParseResult}
