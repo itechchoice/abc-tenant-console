@@ -38,8 +38,8 @@
 
 ### 阶段三：富文本与生成式 UI (Chat Interface)
 - [ ] **重构消息列表分发器**：改造 `src/components/ChatMain.jsx`，引入类型调度逻辑，根据 `msg.type` 分别渲染文本、工具卡片或交互表单。
-- [ ] **封装 Markdown 渲染引擎**：创建 `src/components/GenerativeUI/MarkdownMessage.jsx`，集成 `react-markdown`、`remark-gfm` 和 `react-syntax-highlighter`，实现表格和代码块的完美渲染。
-- [ ] **实现工具调用流转卡片 (Tool Call Card)**：创建 `ToolCallCard.jsx`，根据不同的 `toolName` 渲染对应的状态（执行中 loading、成功摘要、失败报错）。
+- [x] **封装 Markdown 渲染引擎**：创建 `src/components/GenerativeUI/MarkdownMessage.jsx`，集成 `react-markdown`、`remark-gfm` 和 `react-syntax-highlighter`，实现表格和代码块的完美渲染。
+- [x] **实现工具调用流转卡片 (Tool Call Card)**：创建 `ToolCallCard.jsx`，根据不同的 `toolName` 渲染对应的状态（执行中 loading、成功摘要、失败报错）。
 - [ ] **实现动态交互表单 (Interaction Form)**：创建 `InteractionForm.jsx`，动态渲染按钮组（ButtonGroup）、输入框（Input）等控件，并打通向后端 `toolResults` 回传的链路以恢复中断的对话。
 
 ### 阶段四：复杂节点工作流 (Workflow Engine)
