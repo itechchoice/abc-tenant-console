@@ -3,9 +3,10 @@ import {
 } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  ArrowUp, Square, Sparkles, MessageCircle, Code, FileText, Plus,
+  ArrowUp, Square, MessageCircle, Code, FileText, Plus,
 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
+import LogoSvg from '@/assets/svg/logo.svg';
 import { useChatStore } from '@/stores/chatStore';
 import { useConversationDetail, chatQueryKeys } from '@/hooks/useChatHistory';
 import { useAgentChat } from '@/hooks/useAgentChat';
@@ -90,8 +91,8 @@ const WelcomeState = memo(({ onSuggestion }) => (
       transition={{ type: 'spring', stiffness: 200, damping: 22 }}
       className="flex flex-col items-center max-w-lg"
     >
-      <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/6 ring-1 ring-primary/10">
-        <Sparkles size={22} className="text-primary/70" />
+      <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl bg-zinc-900 ring-1 ring-zinc-800">
+        <img src={LogoSvg} alt="" className="h-5 w-auto" />
       </div>
 
       <h1 className="text-xl font-semibold tracking-tight text-foreground">
@@ -247,103 +248,103 @@ const ChatInput = memo(({ onSend, isLoading, onStop }) => {
               MODE_GLOW[chatMode],
             )}
           >
-          {/* ── Mode tabs ─────────────────────────────────────────── */}
-          <div className="px-4 pt-3 pb-0.5">
-            <div className="inline-flex items-center gap-0.5 rounded-lg bg-muted/40 p-0.5">
-              {CHAT_MODES.map((mode) => (
-                <button
-                  key={mode.value}
-                  type="button"
-                  onClick={() => setChatMode(mode.value)}
-                  className={cn(
-                    'rounded-md px-2.5 py-1 text-[11px] font-medium transition-all',
-                    chatMode === mode.value
-                      ? MODE_TAB_ACTIVE[mode.value]
-                      : 'text-muted-foreground/50 hover:text-muted-foreground',
-                  )}
-                >
-                  {mode.label}
-                </button>
-              ))}
+            {/* ── Mode tabs ─────────────────────────────────────────── */}
+            <div className="px-4 pt-3 pb-0.5">
+              <div className="inline-flex items-center gap-0.5 rounded-lg bg-muted/40 p-0.5">
+                {CHAT_MODES.map((mode) => (
+                  <button
+                    key={mode.value}
+                    type="button"
+                    onClick={() => setChatMode(mode.value)}
+                    className={cn(
+                      'rounded-md px-2.5 py-1 text-[11px] font-medium transition-all',
+                      chatMode === mode.value
+                        ? MODE_TAB_ACTIVE[mode.value]
+                        : 'text-muted-foreground/50 hover:text-muted-foreground',
+                    )}
+                  >
+                    {mode.label}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
 
-          {/* ── Textarea zone ─────────────────────────────────────── */}
-          <textarea
-            ref={textareaRef}
-            value={value}
-            onChange={(e) => setValue(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Reply..."
-            rows={1}
-            disabled={isLoading}
-            className={cn(
-              'w-full resize-none bg-transparent px-5 pt-3 pb-1 text-sm leading-relaxed',
-              'outline-none placeholder:text-muted-foreground/40',
-              'disabled:opacity-60 max-h-[200px]',
-            )}
-          />
-
-          {/* ── Bottom toolbar ────────────────────────────────────── */}
-          <div className="flex items-center justify-between px-3 pb-2.5 pt-1">
-            <button
-              type="button"
+            {/* ── Textarea zone ─────────────────────────────────────── */}
+            <textarea
+              ref={textareaRef}
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Reply..."
+              rows={1}
+              disabled={isLoading}
               className={cn(
-                'flex h-7 w-7 items-center justify-center rounded-lg',
-                'text-muted-foreground/40 hover:text-muted-foreground hover:bg-accent/60',
-                'transition-colors active:scale-95',
+                'w-full resize-none bg-transparent px-5 pt-3 pb-1 text-sm leading-relaxed',
+                'outline-none placeholder:text-muted-foreground/40',
+                'disabled:opacity-60 max-h-[200px]',
               )}
-            >
-              <Plus size={16} strokeWidth={1.8} />
-            </button>
+            />
 
-            <div className="flex items-center gap-1.5">
-              {/* ── Dynamic selector per mode ──────────────────────── */}
-              {chatMode === 'model' && <ModelSelector />}
-              {chatMode === 'agent' && <AgentSelector />}
-
-              <AnimatePresence mode="wait">
-                {isLoading ? (
-                  <motion.button
-                    key="stop"
-                    type="button"
-                    initial={{ opacity: 0, scale: 0.8 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.8 }}
-                    transition={{ duration: 0.12 }}
-                    onClick={onStop}
-                    className={cn(
-                      'flex h-7 w-7 shrink-0 items-center justify-center rounded-lg',
-                      'bg-destructive/10 text-destructive hover:bg-destructive/20',
-                      'transition-colors active:scale-95',
-                    )}
-                  >
-                    <Square size={13} />
-                  </motion.button>
-                ) : (
-                  <motion.button
-                    key="send"
-                    type="button"
-                    initial={{ opacity: 0, scale: 0.8 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.8 }}
-                    transition={{ duration: 0.12 }}
-                    onClick={handleSubmit}
-                    disabled={!canSend}
-                    className={cn(
-                      'flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-all',
-                      canSend
-                        ? 'bg-primary text-primary-foreground hover:bg-primary/90 active:scale-95'
-                        : 'text-muted-foreground/30',
-                    )}
-                  >
-                    <ArrowUp size={15} strokeWidth={2.5} />
-                  </motion.button>
+            {/* ── Bottom toolbar ────────────────────────────────────── */}
+            <div className="flex items-center justify-between px-3 pb-2.5 pt-1">
+              <button
+                type="button"
+                className={cn(
+                  'flex h-7 w-7 items-center justify-center rounded-lg',
+                  'text-muted-foreground/40 hover:text-muted-foreground hover:bg-accent/60',
+                  'transition-colors active:scale-95',
                 )}
-              </AnimatePresence>
+              >
+                <Plus size={16} strokeWidth={1.8} />
+              </button>
+
+              <div className="flex items-center gap-1.5">
+                {/* ── Dynamic selector per mode ──────────────────────── */}
+                {chatMode === 'model' && <ModelSelector />}
+                {chatMode === 'agent' && <AgentSelector />}
+
+                <AnimatePresence mode="wait">
+                  {isLoading ? (
+                    <motion.button
+                      key="stop"
+                      type="button"
+                      initial={{ opacity: 0, scale: 0.8 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.8 }}
+                      transition={{ duration: 0.12 }}
+                      onClick={onStop}
+                      className={cn(
+                        'flex h-7 w-7 shrink-0 items-center justify-center rounded-lg',
+                        'bg-destructive/10 text-destructive hover:bg-destructive/20',
+                        'transition-colors active:scale-95',
+                      )}
+                    >
+                      <Square size={13} />
+                    </motion.button>
+                  ) : (
+                    <motion.button
+                      key="send"
+                      type="button"
+                      initial={{ opacity: 0, scale: 0.8 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.8 }}
+                      transition={{ duration: 0.12 }}
+                      onClick={handleSubmit}
+                      disabled={!canSend}
+                      className={cn(
+                        'flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-all',
+                        canSend
+                          ? 'bg-primary text-primary-foreground hover:bg-primary/90 active:scale-95'
+                          : 'text-muted-foreground/30',
+                      )}
+                    >
+                      <ArrowUp size={15} strokeWidth={2.5} />
+                    </motion.button>
+                  )}
+                </AnimatePresence>
+              </div>
             </div>
           </div>
-        </div>
         </div>
 
         <p className="mt-2.5 text-center text-[10px] text-muted-foreground/30">
