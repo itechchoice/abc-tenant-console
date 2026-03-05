@@ -39,6 +39,49 @@ import { useChatStore } from '@/stores/chatStore';
  */
 
 // ---------------------------------------------------------------------------
+// SSE event payload typedefs – documents the backend contract for each
+// custom event so that downstream handlers are self-descriptive.
+// ---------------------------------------------------------------------------
+
+/**
+ * `message_chunk` — incremental text delta emitted by the LLM during
+ * token-by-token streaming.
+ *
+ * @typedef {object} MessageChunkPayload
+ * @property {string} content – Text fragment to append to the assistant turn.
+ */
+
+/**
+ * `tool_call` — the LLM has decided to delegate work to an external tool.
+ *
+ * @typedef {object} ToolCallPayload
+ * @property {string}                   id       – Unique invocation identifier.
+ * @property {string}                   toolName – Canonical tool name (e.g. `"web_search"`).
+ * @property {Record<string, unknown>}  [toolArgs]
+ *   Arbitrary arguments forwarded to the tool runtime.
+ */
+
+/**
+ * `workflow_pending` / `node_pending` / `node_complete` — workflow & node
+ * lifecycle transitions used for React Flow canvas synchronization.
+ *
+ * @typedef {object} WorkflowEventPayload
+ * @property {string}  workflowId – ID of the currently active workflow.
+ * @property {string}  [nodeId]   – ID of the specific node being executed.
+ */
+
+/**
+ * `client_interaction` — the backend requests a client-side form submission
+ * before the agent can continue.  The SSE stream is logically paused until
+ * the user responds.
+ *
+ * @typedef {object} ClientInteractionPayload
+ * @property {Array<Record<string, unknown>>} widgets       – Form control descriptors to render.
+ * @property {string} [interactionId]
+ *   Correlation ID for the user's response.
+ */
+
+// ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
 
@@ -81,7 +124,9 @@ export function useAgentChat() {
      */
     async (content, metadata = {}) => {
       const { token } = useAuthStore.getState();
-      const { addMessage, updateMessage, setTyping } = useChatStore.getState();
+      const {
+        addMessage, updateMessage, setTyping, setWorkflowInfo,
+      } = useChatStore.getState();
 
       // Abort any previously in-flight stream before opening a new one.
       controllerRef.current?.abort();
@@ -108,6 +153,12 @@ export function useAgentChat() {
         timestamp: Date.now(),
         status: 'pending',
       });
+
+      // Local accumulator for streamed content – avoids reading store on
+      // every high-frequency `message_chunk` event.  The full string is
+      // written into the store on each delta so React always sees the
+      // latest snapshot via an immutable update.
+      let streamedContent = '';
 
       // ── SSE connection ──────────────────────────────────────────────
       const baseUrl = import.meta.env.VITE_API_BASE_URL || '/api';
@@ -149,38 +200,76 @@ export function useAgentChat() {
 
             switch (msg.event) {
               // ── Streaming token delta ─────────────────────────────
-              case 'message_chunk':
-                // TODO: phase-2 — append delta to assistant message
-                console.log('[SSE] message_chunk', payload);
+              case 'message_chunk': {
+                /** @type {MessageChunkPayload} */
+                const { content: delta = '' } = payload;
+                streamedContent += delta;
+                updateMessage(assistantMessageId, {
+                  content: streamedContent,
+                  status: 'streaming',
+                });
                 break;
+              }
 
               // ── Tool / function call ──────────────────────────────
-              case 'tool_call':
-                // TODO: phase-2 — attach tool call, render waiting UI
-                console.log('[SSE] tool_call', payload);
+              case 'tool_call': {
+                /** @type {ToolCallPayload} */
+                const { id: toolId, toolName, toolArgs } = payload;
+                const resolvedToolId = toolId || crypto.randomUUID();
+                addMessage({
+                  id: resolvedToolId,
+                  role: 'tool',
+                  content: '',
+                  timestamp: Date.now(),
+                  status: 'pending',
+                  toolCalls: [{
+                    id: resolvedToolId,
+                    name: toolName,
+                    args: toolArgs,
+                    status: 'running',
+                  }],
+                  metadata: { type: 'tool_call' },
+                });
                 break;
+              }
 
               // ── Workflow lifecycle ─────────────────────────────────
-              case 'workflow_pending':
-                // TODO: phase-2 — sync workflow state to store
-                console.log('[SSE] workflow_pending', payload);
+              case 'workflow_pending': {
+                /** @type {WorkflowEventPayload} */
+                const { workflowId, nodeId } = payload;
+                setWorkflowInfo(workflowId ?? null, nodeId ?? null);
                 break;
+              }
 
-              case 'node_pending':
-                // TODO: phase-2 — highlight executing node on canvas
-                console.log('[SSE] node_pending', payload);
+              case 'node_pending': {
+                /** @type {WorkflowEventPayload} */
+                const { workflowId, nodeId } = payload;
+                setWorkflowInfo(workflowId ?? null, nodeId ?? null);
                 break;
+              }
 
-              case 'node_complete':
-                // TODO: phase-2 — mark node execution as finished
-                console.log('[SSE] node_complete', payload);
+              case 'node_complete': {
+                /** @type {WorkflowEventPayload} */
+                const { workflowId } = payload;
+                setWorkflowInfo(workflowId ?? null, null);
                 break;
+              }
 
               // ── Client-side interruption ───────────────────────────
-              case 'client_interaction':
-                // TODO: phase-2 — render interactive form, discard connection
-                console.log('[SSE] client_interaction', payload);
+              case 'client_interaction': {
+                /** @type {ClientInteractionPayload} */
+                const { widgets = [], interactionId } = payload;
+                setTyping(false);
+                addMessage({
+                  id: interactionId || crypto.randomUUID(),
+                  role: 'assistant',
+                  content: '',
+                  timestamp: Date.now(),
+                  status: 'completed',
+                  metadata: { type: 'interaction', widgets },
+                });
                 break;
+              }
 
               // ── Terminal events ────────────────────────────────────
               case 'complete':
@@ -189,7 +278,8 @@ export function useAgentChat() {
                 break;
 
               case 'error': {
-                const serverMsg = payload?.message || 'The server encountered an error while processing your request.';
+                const serverMsg = payload?.message
+                  || 'An error occurred while processing your request.';
                 console.error('[SSE] Server-side error event:', payload);
                 updateMessage(assistantMessageId, {
                   status: 'error',
