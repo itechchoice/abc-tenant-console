@@ -3,14 +3,14 @@ import {
 } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  ArrowUp, Square, Sparkles, MessageCircle, Code, FileText,
-  Plus, ChevronDown,
+  ArrowUp, Square, Sparkles, MessageCircle, Code, FileText, Plus,
 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useChatStore } from '@/stores/chatStore';
 import { useConversationDetail, chatQueryKeys } from '@/hooks/useChatHistory';
 import { useAgentChat } from '@/hooks/useAgentChat';
 import { ChatMain } from '@/components/Chat/ChatMain';
+import ModelSelector from './ModelSelector';
 import { cn } from '@/lib/utils';
 
 // ---------------------------------------------------------------------------
@@ -214,17 +214,7 @@ const ChatInput = memo(({ onSend, isLoading, onStop }) => {
             </button>
 
             <div className="flex items-center gap-1.5">
-              <button
-                type="button"
-                className={cn(
-                  'flex items-center gap-0.5 rounded-lg px-2 py-1 text-xs',
-                  'text-muted-foreground/40 hover:text-muted-foreground hover:bg-accent/60',
-                  'transition-colors',
-                )}
-              >
-                <span>GPT-4o</span>
-                <ChevronDown size={12} />
-              </button>
+              <ModelSelector />
 
               <AnimatePresence mode="wait">
                 {isLoading ? (
@@ -316,16 +306,11 @@ export default function ChatPanel() {
     <div className="flex flex-1 flex-col min-w-0 bg-background">
       {/* ── Chat header ────────────────────────────────────────────── */}
       {(currentSessionId || hasMessages) && (
-        <motion.div
-          initial={{ opacity: 0, y: -4 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.2 }}
-          className="flex h-12 shrink-0 items-center border-b border-border/40 px-6"
-        >
+        <div className="flex h-12 shrink-0 items-center border-b border-border/40 px-6">
           <h3 className="text-[13px] font-medium text-foreground/70 truncate">
             {sessionDetail?.title || (currentSessionId ? 'Conversation' : 'New Conversation')}
           </h3>
-        </motion.div>
+        </div>
       )}
 
       {/* ── Main content area ──────────────────────────────────────── */}

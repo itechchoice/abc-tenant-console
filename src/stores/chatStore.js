@@ -5,6 +5,7 @@ import { create } from 'zustand';
  * @typedef {import('@/schemas/chatSchema').MessageRole} MessageRole
  * @typedef {import('@/schemas/chatSchema').MessageStatus} MessageStatus
  * @typedef {import('@/schemas/chatSchema').ToolCall} ToolCall
+ * @typedef {import('@/schemas/modelSchema').AssignedProvider} AssignedProvider
  */
 
 // ---------------------------------------------------------------------------
@@ -26,6 +27,9 @@ import { create } from 'zustand';
  *   when no workflow context is active.
  * @property {string | null} activeNodeId
  *   ID of the workflow node currently highlighted / executing, or `null`.
+ * @property {AssignedProvider | null} selectedModel
+ *   Currently selected LLM provider for the chat input.  Persists across
+ *   `clearChat` calls as a workspace-level preference.
  */
 
 /**
@@ -48,8 +52,11 @@ import { create } from 'zustand';
  * @property {(workflowId: string | null, nodeId: string | null) => void} setWorkflowInfo
  *   Atomically update the active workflow ID **and** the highlighted node
  *   ID in a single render batch.
+ * @property {(model: AssignedProvider | null) => void} setSelectedModel
+ *   Set or clear the active LLM provider for the chat input.
  * @property {() => void} clearChat
- *   Reset the entire chat state to its initial (empty) values.
+ *   Reset conversation-level state to initial values.  `selectedModel`
+ *   is deliberately **not** reset (workspace-level preference).
  */
 
 /**
@@ -93,6 +100,7 @@ const INITIAL_STATE = {
  */
 export const useChatStore = create((set) => ({
   ...INITIAL_STATE,
+  selectedModel: null,
 
   setMessages: (messages) => set({ messages }),
 
@@ -112,6 +120,8 @@ export const useChatStore = create((set) => ({
     currentWorkflowId: workflowId,
     activeNodeId: nodeId,
   }),
+
+  setSelectedModel: (model) => set({ selectedModel: model }),
 
   clearChat: () => set(INITIAL_STATE),
 }));
