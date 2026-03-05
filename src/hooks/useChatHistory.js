@@ -8,79 +8,74 @@ import { useChatStore } from '@/stores/chatStore';
  */
 
 // ---------------------------------------------------------------------------
-// API response typedefs – documents the expected backend contract so that
-// every consumer of these Hooks enjoys full IntelliSense.
+// API response typedefs
 // ---------------------------------------------------------------------------
 
 /**
- * Summary of a single chat session as returned by `GET /agent/sessions`.
+ * Summary of a single conversation as returned by `GET /conversations`.
  *
- * @typedef {object} ChatSessionSummary
- * @property {string}  id        – Unique session identifier.
- * @property {string}  title     – Human-readable session title (often the
- *   first user prompt, truncated).
- * @property {number}  createdAt – Unix-epoch ms when the session was created.
+ * @typedef {object} ConversationSummary
+ * @property {string}  id        – Unique conversation identifier.
+ * @property {string}  agentId   – Associated agent identifier.
+ * @property {string}  title     – Human-readable conversation title.
+ * @property {number}  createdAt – Unix-epoch ms when the conversation was created.
  * @property {number}  updatedAt – Unix-epoch ms of the most recent activity.
  */
 
 /**
- * Full session payload returned by `GET /agent/sessions/:id`.
+ * Full conversation payload returned by `GET /conversations/{id}`.
  *
- * @typedef {object} ChatSessionDetail
- * @property {string}    id        – Session identifier (mirrors the URL param).
- * @property {string}    title     – Session title.
+ * @typedef {object} ConversationDetail
+ * @property {string}    id        – Conversation identifier.
+ * @property {string}    title     – Conversation title.
  * @property {Message[]} messages  – Chronologically ordered conversation turns.
  * @property {number}    createdAt – Unix-epoch ms.
  * @property {number}    updatedAt – Unix-epoch ms.
  */
 
 // ---------------------------------------------------------------------------
-// Query keys – centralised to guarantee cache invalidation consistency.
+// Query keys
 // ---------------------------------------------------------------------------
 
 export const chatQueryKeys = {
-  sessions: ['agent', 'sessions'],
+  conversations: ['conversations'],
   /** @param {string} id */
-  sessionDetail: (id) => ['agent', 'sessions', id],
+  conversationDetail: (id) => ['conversations', id],
 };
 
 // ---------------------------------------------------------------------------
-// useChatSessions
+// useConversations
 // ---------------------------------------------------------------------------
 
 /**
- * Fetches the paginated list of historical chat sessions for the sidebar.
+ * Fetches the list of historical conversations for the sidebar.
  *
- * Backed by `GET /agent/sessions` via `apiClient` (token injection and
- * path rewriting handled by the Axios interceptor layer).
- *
- * @returns {import('@tanstack/react-query').UseQueryResult<ChatSessionSummary[]>}
+ * @returns {import('@tanstack/react-query').UseQueryResult<ConversationSummary[]>}
  */
-export function useChatSessions() {
+export function useConversations() {
   return useQuery({
-    queryKey: chatQueryKeys.sessions,
-    queryFn: () => apiClient.get('/agent/sessions'),
+    queryKey: chatQueryKeys.conversations,
+    queryFn: () => apiClient.get('/conversations'),
   });
 }
 
 // ---------------------------------------------------------------------------
-// useChatDetail
+// useConversationDetail
 // ---------------------------------------------------------------------------
 
 /**
- * Fetches the full conversation history for a single session and
+ * Fetches the full message history for a single conversation and
  * synchronises the result into the global `useChatStore`.
  *
- * When `sessionId` is falsy the query is **disabled** – no network
- * request will fire until a valid ID is provided.
+ * When `sessionId` is falsy the query is **disabled**.
  *
  * @param {string | null | undefined} sessionId
- * @returns {import('@tanstack/react-query').UseQueryResult<ChatSessionDetail>}
+ * @returns {import('@tanstack/react-query').UseQueryResult<ConversationDetail>}
  */
-export function useChatDetail(sessionId) {
+export function useConversationDetail(sessionId) {
   const query = useQuery({
-    queryKey: chatQueryKeys.sessionDetail(sessionId ?? ''),
-    queryFn: () => apiClient.get(`/agent/sessions/${sessionId}`),
+    queryKey: chatQueryKeys.conversationDetail(sessionId ?? ''),
+    queryFn: () => apiClient.get(`/conversations/${sessionId}`),
     enabled: !!sessionId,
   });
 

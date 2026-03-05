@@ -1,18 +1,18 @@
-import { Link } from 'react-router-dom';
+import ConversationSidebar from './components/ConversationSidebar';
+import ChatPanel from './components/ChatPanel';
 
+/**
+ * Home – default landing page after login.
+ *
+ * Split-screen layout: conversation history on the left, chat interface on
+ * the right.  Both panels fetch data independently with their own loading
+ * skeleton states (parallel requests, no mutual blocking).
+ */
 function Home() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <div className="text-center">
-        <h1 className="text-4xl font-bold text-gray-800">Welcome</h1>
-        <p className="mt-3 text-lg text-gray-500">Project is ready. Start building your app.</p>
-        <Link
-          to="/test-404"
-          className="mt-6 inline-block text-sm text-gray-400 hover:text-gray-600 underline"
-        >
-          Test 404 Page
-        </Link>
-      </div>
+    <div className="flex min-h-dvh bg-background">
+      <ConversationSidebar />
+      <ChatPanel />
     </div>
   );
 }

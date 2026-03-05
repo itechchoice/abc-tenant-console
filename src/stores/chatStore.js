@@ -19,6 +19,8 @@ import { create } from 'zustand';
  *   Chronologically ordered list of all messages in the active conversation.
  * @property {boolean} isTyping
  *   `true` while the LLM is actively streaming tokens via SSE.
+ * @property {string | null} currentSessionId
+ *   ID of the active conversation session, or `null` for a fresh chat.
  * @property {string | null} currentWorkflowId
  *   ID of the workflow currently activated by the AI agent, or `null`
  *   when no workflow context is active.
@@ -41,6 +43,8 @@ import { create } from 'zustand';
  *   status from `streaming` → `completed`.
  * @property {(typing: boolean) => void} setTyping
  *   Toggle the global streaming / typing indicator.
+ * @property {(sessionId: string | null) => void} setCurrentSessionId
+ *   Set or clear the active conversation session.
  * @property {(workflowId: string | null, nodeId: string | null) => void} setWorkflowInfo
  *   Atomically update the active workflow ID **and** the highlighted node
  *   ID in a single render batch.
@@ -63,6 +67,7 @@ import { create } from 'zustand';
 const INITIAL_STATE = {
   messages: [],
   isTyping: false,
+  currentSessionId: null,
   currentWorkflowId: null,
   activeNodeId: null,
 };
@@ -100,6 +105,8 @@ export const useChatStore = create((set) => ({
   })),
 
   setTyping: (typing) => set({ isTyping: typing }),
+
+  setCurrentSessionId: (sessionId) => set({ currentSessionId: sessionId }),
 
   setWorkflowInfo: (workflowId, nodeId) => set({
     currentWorkflowId: workflowId,

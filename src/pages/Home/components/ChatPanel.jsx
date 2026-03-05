@@ -1,0 +1,314 @@
+import {
+  useState, useRef, useCallback, memo, useEffect,
+} from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import {
+  ArrowUp, Square, Sparkles, MessageCircle, Code, FileText,
+} from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
+import { useChatStore } from '@/stores/chatStore';
+import { useConversationDetail, chatQueryKeys } from '@/hooks/useChatHistory';
+import { useAgentChat } from '@/hooks/useAgentChat';
+import { ChatMain } from '@/components/Chat/ChatMain';
+import { cn } from '@/lib/utils';
+
+// ---------------------------------------------------------------------------
+// Skeleton
+// ---------------------------------------------------------------------------
+
+const BUBBLE_DEFS = [
+  { side: 'left', w: '62%', h: 52 },
+  { side: 'right', w: '44%', h: 40 },
+  { side: 'left', w: '78%', h: 68 },
+  { side: 'right', w: '36%', h: 36 },
+  { side: 'left', w: '54%', h: 48 },
+];
+
+function ChatSkeleton() {
+  return (
+    <div className="flex flex-1 flex-col gap-5 px-4 py-8">
+      <div className="mx-auto w-full max-w-3xl flex flex-col gap-5">
+        {BUBBLE_DEFS.map((def) => (
+          <div
+            key={`${def.side}-${def.w}`}
+            className={cn(
+              'flex items-start gap-3',
+              def.side === 'right' && 'flex-row-reverse',
+            )}
+          >
+            <div className="h-7 w-7 shrink-0 rounded-full bg-muted/50 animate-pulse" />
+            <div
+              className={cn(
+                'rounded-2xl animate-pulse',
+                def.side === 'right'
+                  ? 'rounded-tr-sm bg-primary/8'
+                  : 'rounded-tl-sm bg-muted/50',
+              )}
+              style={{
+                width: def.w,
+                height: `${def.h}px`,
+              }}
+            />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Welcome state
+// ---------------------------------------------------------------------------
+
+const SUGGESTIONS = [
+  { icon: MessageCircle, label: 'Explain a concept', prompt: 'Explain how neural networks learn from data' },
+  { icon: Code, label: 'Write some code', prompt: 'Write a debounce utility function in JavaScript' },
+  { icon: FileText, label: 'Summarize content', prompt: 'Help me summarize a long document' },
+];
+
+const suggestionVariants = {
+  hidden: { opacity: 0, y: 12 },
+  visible: (i) => ({
+    opacity: 1,
+    y: 0,
+    transition: {
+      type: 'spring',
+      stiffness: 260,
+      damping: 24,
+      delay: 0.15 + i * 0.06,
+    },
+  }),
+};
+
+const WelcomeState = memo(({ onSuggestion }) => (
+  <div className="flex flex-1 flex-col items-center justify-center px-6 pb-24">
+    <motion.div
+      initial={{ opacity: 0, scale: 0.92 }}
+      animate={{ opacity: 1, scale: 1 }}
+      transition={{ type: 'spring', stiffness: 200, damping: 22 }}
+      className="flex flex-col items-center max-w-lg"
+    >
+      <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/6 ring-1 ring-primary/10">
+        <Sparkles size={22} className="text-primary/70" />
+      </div>
+
+      <h1 className="text-xl font-semibold tracking-tight text-foreground">
+        How can I help you today?
+      </h1>
+      <p className="mt-2 text-sm leading-relaxed text-muted-foreground max-w-[42ch] text-center">
+        Start a conversation below, or pick a suggestion to get going.
+      </p>
+
+      <div className="mt-8 grid w-full max-w-sm gap-2.5">
+        {SUGGESTIONS.map((s, i) => (
+          <motion.button
+            key={s.label}
+            custom={i}
+            variants={suggestionVariants}
+            initial="hidden"
+            animate="visible"
+            type="button"
+            onClick={() => onSuggestion(s.prompt)}
+            className={cn(
+              'group flex items-center gap-3 rounded-xl px-4 py-3 text-left text-[13px]',
+              'border border-border/60 bg-background',
+              'transition-all hover:border-border hover:shadow-sm',
+              'active:scale-[0.98]',
+            )}
+          >
+            <s.icon size={15} className="shrink-0 text-muted-foreground/50 group-hover:text-primary/70 transition-colors" />
+            <span className="text-foreground/80 group-hover:text-foreground transition-colors">
+              {s.label}
+            </span>
+          </motion.button>
+        ))}
+      </div>
+    </motion.div>
+  </div>
+));
+WelcomeState.displayName = 'WelcomeState';
+
+// ---------------------------------------------------------------------------
+// ChatInput
+// ---------------------------------------------------------------------------
+
+const ChatInput = memo(({ onSend, isLoading, onStop }) => {
+  const [value, setValue] = useState('');
+  const textareaRef = useRef(null);
+
+  const resetHeight = useCallback(() => {
+    const el = textareaRef.current;
+    if (el) {
+      el.style.height = 'auto';
+    }
+  }, []);
+
+  const adjustHeight = useCallback(() => {
+    const el = textareaRef.current;
+    if (el) {
+      el.style.height = 'auto';
+      el.style.height = `${Math.min(el.scrollHeight, 200)}px`;
+    }
+  }, []);
+
+  const handleSubmit = useCallback(() => {
+    const trimmed = value.trim();
+    if (!trimmed || isLoading) return;
+    onSend(trimmed);
+    setValue('');
+    resetHeight();
+  }, [value, isLoading, onSend, resetHeight]);
+
+  const handleKeyDown = useCallback((e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSubmit();
+    }
+  }, [handleSubmit]);
+
+  useEffect(() => {
+    adjustHeight();
+  }, [value, adjustHeight]);
+
+  const canSend = value.trim().length > 0 && !isLoading;
+
+  return (
+    <div className="border-t border-border/60 bg-background px-4 py-3">
+      <div className="mx-auto max-w-3xl">
+        <div
+          className={cn(
+            'relative flex items-end gap-2 rounded-2xl border bg-background px-4 py-3',
+            'shadow-[0_1px_3px_rgba(0,0,0,0.04)] transition-all duration-200',
+            'focus-within:shadow-[0_2px_8px_rgba(0,0,0,0.06)] focus-within:border-ring/40',
+          )}
+        >
+          <textarea
+            ref={textareaRef}
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="Type a message..."
+            rows={1}
+            disabled={isLoading}
+            className={cn(
+              'flex-1 resize-none bg-transparent text-sm leading-relaxed',
+              'outline-none placeholder:text-muted-foreground/40',
+              'disabled:opacity-60 max-h-[200px]',
+            )}
+          />
+
+          <AnimatePresence mode="wait">
+            {isLoading ? (
+              <motion.button
+                key="stop"
+                type="button"
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.8 }}
+                transition={{ duration: 0.12 }}
+                onClick={onStop}
+                className={cn(
+                  'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg',
+                  'bg-destructive/10 text-destructive hover:bg-destructive/20',
+                  'transition-colors active:scale-95',
+                )}
+              >
+                <Square size={14} />
+              </motion.button>
+            ) : (
+              <motion.button
+                key="send"
+                type="button"
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.8 }}
+                transition={{ duration: 0.12 }}
+                onClick={handleSubmit}
+                disabled={!canSend}
+                className={cn(
+                  'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-all',
+                  canSend
+                    ? 'bg-primary text-primary-foreground hover:bg-primary/90 active:scale-95'
+                    : 'bg-muted text-muted-foreground/40',
+                )}
+              >
+                <ArrowUp size={15} strokeWidth={2.5} />
+              </motion.button>
+            )}
+          </AnimatePresence>
+        </div>
+
+        <p className="mt-2 text-center text-[10px] text-muted-foreground/30">
+          AI-generated content may be inaccurate. Verify important information.
+        </p>
+      </div>
+    </div>
+  );
+});
+ChatInput.displayName = 'ChatInput';
+
+// ---------------------------------------------------------------------------
+// ChatPanel
+// ---------------------------------------------------------------------------
+
+export default function ChatPanel() {
+  const currentSessionId = useChatStore((s) => s.currentSessionId);
+  const messages = useChatStore((s) => s.messages);
+
+  const queryClient = useQueryClient();
+
+  const handleSessionCreated = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: chatQueryKeys.conversations });
+    queryClient.refetchQueries({ queryKey: chatQueryKeys.conversations });
+  }, [queryClient]);
+
+  const { sendMessage, stopStream, isLoading: isSending } = useAgentChat({
+    onSessionCreated: handleSessionCreated,
+  });
+
+  const { isLoading: isLoadingDetail } = useConversationDetail(currentSessionId);
+
+  const handleSend = useCallback((content) => {
+    sendMessage(content, {
+      sessionId: useChatStore.getState().currentSessionId || undefined,
+    });
+  }, [sendMessage]);
+
+  const hasMessages = messages.length > 0;
+  const showSkeleton = isLoadingDetail && !hasMessages;
+  const showWelcome = !currentSessionId && !hasMessages && !isLoadingDetail;
+
+  return (
+    <div className="flex flex-1 flex-col min-w-0 bg-background">
+      {/* ── Chat header ────────────────────────────────────────────── */}
+      {hasMessages && (
+        <motion.div
+          initial={{ opacity: 0, y: -4 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.2 }}
+          className="flex h-12 shrink-0 items-center border-b border-border/40 px-6"
+        >
+          <h3 className="text-[13px] font-medium text-foreground/70 truncate">
+            {currentSessionId ? 'Conversation' : 'New Conversation'}
+          </h3>
+        </motion.div>
+      )}
+
+      {/* ── Main content area ──────────────────────────────────────── */}
+      {showSkeleton ? (
+        <ChatSkeleton />
+      ) : showWelcome ? (
+        <WelcomeState onSuggestion={handleSend} />
+      ) : (
+        <ChatMain className="flex-1" />
+      )}
+
+      {/* ── Input area ─────────────────────────────────────────────── */}
+      <ChatInput
+        onSend={handleSend}
+        isLoading={isSending}
+        onStop={stopStream}
+      />
+    </div>
+  );
+}
