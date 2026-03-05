@@ -1,4 +1,4 @@
-# 🚀 大型 AI Agent & Workflow 架构落地 TODO List
+# 🚀 大型 AI Agent & Workflow 架构落地 Done List
 
 本列表基于已确定的技术底座（纯 JSX + Zustand + React Flow + Zod + FetchEventSource）制定，是系统架构的实施蓝图。
 
@@ -43,6 +43,6 @@
 - [x] **实现动态交互表单 (Interaction Form)**：创建 `InteractionForm.jsx`，动态渲染按钮组（ButtonGroup）、输入框（Input）等控件，并打通向后端 `toolResults` 回传的链路以恢复中断的对话。
 
 ### 阶段四：复杂节点工作流 (Workflow Engine)
-- [ ] **初始化 React Flow 画布**：在项目中开辟独立的工作流预览/编辑区域，引入 `@xyflow/react` 的 `<ReactFlow />` 核心组件。
-- [ ] **设计 AI 专属自定义节点**：基于你们的业务场景，使用 React Flow 的 `custom nodes` API 开发特殊的 LLM 节点、工具节点。
-- [ ] **打通画布与 Agent 状态流**：监听 Zustand Store 中的 `activeNodeId`。当接收到后端的 `node_pending` 或 `node_complete` 事件时，在 React Flow 画布中实时高亮正在执行的节点及连线动画。
+- [x] **初始化 React Flow 画布**：在项目中开辟独立的工作流预览/编辑区域，引入 `@xyflow/react` 的 `<ReactFlow />` 核心组件。
+- [x] **设计 AI 专属自定义节点**：基于你们的业务场景，使用 React Flow 的 `custom nodes` API 开发特殊的 LLM 节点、工具节点。
+- [x] **打通画布与 Agent 状态流**：监听 Zustand Store 中的 `activeNodeId`。当接收到后端的 `node_pending` 或 `node_complete` 事件时，在 React Flow 画布中实时高亮正在执行的节点及连线动画。
