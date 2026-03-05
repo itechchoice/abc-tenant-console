@@ -30,9 +30,9 @@
 - [x] **实现历史会话同步**：引入 `@tanstack/react-query`，编写加载历史会话列表和单次会话详情的查询 Hook，并与 Zustand Store 结合。
 
 ### 阶段二：数据安全防线 (Runtime Validation)
-- [ ] **建立 Zod Schema 注册表**：在 `src/utils/schemas/` 目录下，为大模型常用的输出数据结构定义 Zod Schema（特别是 Tool Call 的 `args` 结构）。
-- [ ] **实现交互表单校验防线**：为后端的 `client_interaction` 事件中的 `widgets` 数组定义强校验 Schema。
-- [ ] **封装安全解析器**：编写一个工具函数 `safeParseAIJson`，内部使用 try-catch 和 zod，确保解析失败时抛出友好错误而非白屏，并在必要时触发大模型重试。
+- [x] **建立 Zod Schema 注册表**：在 `src/schemas/` 目录下，为大模型常用的输出数据结构定义 Zod Schema（特别是 Tool Call 的 `args` 结构）。
+- [x] **实现交互表单校验防线**：为后端的 `client_interaction` 事件中的 `widgets` 数组定义强校验 Schema。
+- [x] **封装安全解析器**：编写一个工具函数 `safeParseAIJson`，内部使用 try-catch 和 zod，确保解析失败时抛出友好错误而非白屏，并在必要时触发大模型重试。
 
 ## 视图呈现阶段 (Generative UI & Visuals)
 

@@ -12,7 +12,7 @@ globs: ["src/**/*.js", "src/**/*.jsx"]
 ## 详细约束与 AI Agent 行为准则
 
 ### 1. Zod 作为唯一事实来源 (Single Source of Truth)
-- 项目中所有重要的数据结构（大模型返回的 JSON、工作流节点配置、复杂的 API 入参），必须首先在 `src/utils/schemas/` 目录下定义为 Zod Schema。
+- 项目中所有重要的数据结构（大模型返回的 JSON、工作流节点配置、复杂的 API 入参），必须首先在 `src/schemas/` 目录下定义为 Zod Schema。
 - 在对大模型返回的文本进行 `JSON.parse` 之后，或者从远端加载复杂配置时，必须立刻调用对应的 `schema.parse()` 或 `schema.safeParse()` 进行运行时数据清洗与拦截。
 
 ### 2. 强制 JSDoc 标注 (类型推导)
