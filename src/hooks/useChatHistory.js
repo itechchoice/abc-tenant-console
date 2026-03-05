@@ -1,36 +1,13 @@
 import { useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { z } from 'zod';
 import { apiClient } from '@/http/client';
 import { useChatStore } from '@/stores/chatStore';
+import { SessionItemSchema } from '@/schemas/chatSchema';
 
 /**
  * @typedef {import('@/schemas/chatSchema').Message} Message
- */
-
-// ---------------------------------------------------------------------------
-// API response typedefs
-// ---------------------------------------------------------------------------
-
-/**
- * Summary of a single conversation as returned by `GET /conversations`.
- *
- * @typedef {object} ConversationSummary
- * @property {string}  id        – Unique conversation identifier.
- * @property {string}  agentId   – Associated agent identifier.
- * @property {string}  title     – Human-readable conversation title.
- * @property {number}  createdAt – Unix-epoch ms when the conversation was created.
- * @property {number}  updatedAt – Unix-epoch ms of the most recent activity.
- */
-
-/**
- * Full conversation payload returned by `GET /conversations/{id}`.
- *
- * @typedef {object} ConversationDetail
- * @property {string}    id        – Conversation identifier.
- * @property {string}    title     – Conversation title.
- * @property {Message[]} messages  – Chronologically ordered conversation turns.
- * @property {number}    createdAt – Unix-epoch ms.
- * @property {number}    updatedAt – Unix-epoch ms.
+ * @typedef {import('@/schemas/chatSchema').SessionItem} SessionItem
  */
 
 // ---------------------------------------------------------------------------
@@ -38,44 +15,64 @@ import { useChatStore } from '@/stores/chatStore';
 // ---------------------------------------------------------------------------
 
 export const chatQueryKeys = {
-  conversations: ['conversations'],
+  sessions: ['sessions'],
   /** @param {string} id */
-  conversationDetail: (id) => ['conversations', id],
+  sessionDetail: (id) => ['sessions', id],
+  /** Legacy alias — points to the same key so existing invalidation works. */
+  conversations: ['sessions'],
 };
 
 // ---------------------------------------------------------------------------
-// useConversations
+// useSessions — sidebar session list
 // ---------------------------------------------------------------------------
 
 /**
- * Fetches the list of historical conversations for the sidebar.
+ * Fetches the list of active sessions for the sidebar.
  *
- * @returns {import('@tanstack/react-query').UseQueryResult<ConversationSummary[]>}
+ * Response is validated through the `SessionItemSchema` Zod guard.
+ * Falls back to raw data if schema validation fails (defensive parsing).
+ *
+ * @returns {import('@tanstack/react-query').UseQueryResult<SessionItem[]>}
  */
-export function useConversations() {
+export function useSessions() {
   return useQuery({
-    queryKey: chatQueryKeys.conversations,
-    queryFn: () => apiClient.get('/conversations'),
+    queryKey: chatQueryKeys.sessions,
+    queryFn: async () => {
+      const res = await apiClient.get('/sessions');
+      const raw = Array.isArray(res) ? res : (res?.data ?? []);
+      try {
+        return z.array(SessionItemSchema).parse(raw);
+      } catch (err) {
+        console.warn('[useSessions] Zod validation fell through — returning raw:', err);
+        return raw;
+      }
+    },
   });
 }
 
+/** @deprecated Use {@link useSessions} instead. Kept for backward compatibility. */
+export const useConversations = useSessions;
+
 // ---------------------------------------------------------------------------
-// useConversationDetail
+// useSessionDetail — loads full session with message history
 // ---------------------------------------------------------------------------
 
 /**
- * Fetches the full message history for a single conversation and
- * synchronises the result into the global `useChatStore`.
+ * Fetches the full detail for a single session and synchronises
+ * the message list into the global `useChatStore`.
  *
  * When `sessionId` is falsy the query is **disabled**.
  *
  * @param {string | null | undefined} sessionId
- * @returns {import('@tanstack/react-query').UseQueryResult<ConversationDetail>}
+ * @returns {import('@tanstack/react-query').UseQueryResult}
  */
-export function useConversationDetail(sessionId) {
+export function useSessionDetail(sessionId) {
   const query = useQuery({
-    queryKey: chatQueryKeys.conversationDetail(sessionId ?? ''),
-    queryFn: () => apiClient.get(`/conversations/${sessionId}`),
+    queryKey: chatQueryKeys.sessionDetail(sessionId ?? ''),
+    queryFn: async () => {
+      const res = await apiClient.get(`/sessions/${sessionId}`);
+      return res?.data ?? res;
+    },
     enabled: !!sessionId,
   });
 
@@ -86,3 +83,6 @@ export function useConversationDetail(sessionId) {
 
   return query;
 }
+
+/** @deprecated Use {@link useSessionDetail} instead. */
+export const useConversationDetail = useSessionDetail;

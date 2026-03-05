@@ -18,15 +18,15 @@ import { cn } from '@/lib/utils';
 const DAY_MS = 86_400_000;
 
 /**
- * @param {import('@/hooks/useChatHistory').ConversationSummary[]} conversations
+ * @param {import('@/schemas/chatSchema').SessionItem[]} sessions
  */
-function groupByTime(conversations) {
+function groupByTime(sessions) {
   const todayStart = new Date().setHours(0, 0, 0, 0);
   const yesterdayStart = todayStart - DAY_MS;
   const weekStart = todayStart - 7 * DAY_MS;
   const monthStart = todayStart - 30 * DAY_MS;
 
-  /** @type {Record<string, import('@/hooks/useChatHistory').ConversationSummary[]>} */
+  /** @type {Record<string, import('@/schemas/chatSchema').SessionItem[]>} */
   const buckets = {
     Today: [],
     Yesterday: [],
@@ -35,13 +35,14 @@ function groupByTime(conversations) {
     Older: [],
   };
 
-  conversations.forEach((conv) => {
-    const t = conv.updatedAt || conv.createdAt || 0;
-    if (t >= todayStart) buckets.Today.push(conv);
-    else if (t >= yesterdayStart) buckets.Yesterday.push(conv);
-    else if (t >= weekStart) buckets['Previous 7 Days'].push(conv);
-    else if (t >= monthStart) buckets['Previous 30 Days'].push(conv);
-    else buckets.Older.push(conv);
+  sessions.forEach((s) => {
+    const raw = s.lastMessageAt || s.updatedAt || s.createdAt;
+    const t = typeof raw === 'string' ? new Date(raw).getTime() : (raw || 0);
+    if (t >= todayStart) buckets.Today.push(s);
+    else if (t >= yesterdayStart) buckets.Yesterday.push(s);
+    else if (t >= weekStart) buckets['Previous 7 Days'].push(s);
+    else if (t >= monthStart) buckets['Previous 30 Days'].push(s);
+    else buckets.Older.push(s);
   });
 
   return Object.entries(buckets)
@@ -185,9 +186,9 @@ export default function ConversationSidebar() {
   const queryClient = useQueryClient();
 
   const deleteMutation = useMutation({
-    mutationFn: (id) => apiClient.delete(`/conversations/${id}`),
+    mutationFn: (id) => apiClient.delete(`/sessions/${id}`),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: chatQueryKeys.conversations });
+      queryClient.invalidateQueries({ queryKey: chatQueryKeys.sessions });
     },
   });
 
@@ -218,7 +219,7 @@ export default function ConversationSidebar() {
   const grouped = useMemo(() => groupByTime(filtered), [filtered]);
 
   return (
-    <aside className="flex w-80 shrink-0 flex-col border-r border-border bg-sidebar">
+    <aside className="flex w-64 shrink-0 flex-col border-r border-border/40 bg-sidebar">
       {/* ── Header ─────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between px-4 pt-5 pb-3">
         <h2 className="text-xs font-semibold uppercase tracking-widest text-sidebar-foreground/40">

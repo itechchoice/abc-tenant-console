@@ -4,6 +4,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowUp, Square, Sparkles, MessageCircle, Code, FileText,
+  Plus, ChevronDown,
 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useChatStore } from '@/stores/chatStore';
@@ -173,72 +174,102 @@ const ChatInput = memo(({ onSend, isLoading, onStop }) => {
   const canSend = value.trim().length > 0 && !isLoading;
 
   return (
-    <div className="border-t border-border/60 bg-background px-4 py-3">
+    <div className="px-4 pb-4 pt-2">
       <div className="mx-auto max-w-3xl">
         <div
           className={cn(
-            'relative flex items-end gap-2 rounded-2xl border bg-background px-4 py-3',
-            'shadow-[0_1px_3px_rgba(0,0,0,0.04)] transition-all duration-200',
-            'focus-within:shadow-[0_2px_8px_rgba(0,0,0,0.06)] focus-within:border-ring/40',
+            'flex flex-col rounded-2xl border border-border/50',
+            'bg-background transition-all duration-200',
+            'shadow-[0_1px_8px_rgba(0,0,0,0.04)]',
+            'focus-within:shadow-[0_2px_16px_rgba(0,0,0,0.06)] focus-within:border-border',
           )}
         >
+          {/* ── Textarea zone ─────────────────────────────────────── */}
           <textarea
             ref={textareaRef}
             value={value}
             onChange={(e) => setValue(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Type a message..."
+            placeholder="Reply..."
             rows={1}
             disabled={isLoading}
             className={cn(
-              'flex-1 resize-none bg-transparent text-sm leading-relaxed',
+              'w-full resize-none bg-transparent px-5 pt-4 pb-1 text-sm leading-relaxed',
               'outline-none placeholder:text-muted-foreground/40',
               'disabled:opacity-60 max-h-[200px]',
             )}
           />
 
-          <AnimatePresence mode="wait">
-            {isLoading ? (
-              <motion.button
-                key="stop"
+          {/* ── Bottom toolbar ────────────────────────────────────── */}
+          <div className="flex items-center justify-between px-3 pb-2.5 pt-1">
+            <button
+              type="button"
+              className={cn(
+                'flex h-7 w-7 items-center justify-center rounded-lg',
+                'text-muted-foreground/40 hover:text-muted-foreground hover:bg-accent/60',
+                'transition-colors active:scale-95',
+              )}
+            >
+              <Plus size={16} strokeWidth={1.8} />
+            </button>
+
+            <div className="flex items-center gap-1.5">
+              <button
                 type="button"
-                initial={{ opacity: 0, scale: 0.8 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.8 }}
-                transition={{ duration: 0.12 }}
-                onClick={onStop}
                 className={cn(
-                  'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg',
-                  'bg-destructive/10 text-destructive hover:bg-destructive/20',
-                  'transition-colors active:scale-95',
+                  'flex items-center gap-0.5 rounded-lg px-2 py-1 text-xs',
+                  'text-muted-foreground/40 hover:text-muted-foreground hover:bg-accent/60',
+                  'transition-colors',
                 )}
               >
-                <Square size={14} />
-              </motion.button>
-            ) : (
-              <motion.button
-                key="send"
-                type="button"
-                initial={{ opacity: 0, scale: 0.8 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.8 }}
-                transition={{ duration: 0.12 }}
-                onClick={handleSubmit}
-                disabled={!canSend}
-                className={cn(
-                  'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-all',
-                  canSend
-                    ? 'bg-primary text-primary-foreground hover:bg-primary/90 active:scale-95'
-                    : 'bg-muted text-muted-foreground/40',
+                <span>GPT-4o</span>
+                <ChevronDown size={12} />
+              </button>
+
+              <AnimatePresence mode="wait">
+                {isLoading ? (
+                  <motion.button
+                    key="stop"
+                    type="button"
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.8 }}
+                    transition={{ duration: 0.12 }}
+                    onClick={onStop}
+                    className={cn(
+                      'flex h-7 w-7 shrink-0 items-center justify-center rounded-lg',
+                      'bg-destructive/10 text-destructive hover:bg-destructive/20',
+                      'transition-colors active:scale-95',
+                    )}
+                  >
+                    <Square size={13} />
+                  </motion.button>
+                ) : (
+                  <motion.button
+                    key="send"
+                    type="button"
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.8 }}
+                    transition={{ duration: 0.12 }}
+                    onClick={handleSubmit}
+                    disabled={!canSend}
+                    className={cn(
+                      'flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-all',
+                      canSend
+                        ? 'bg-primary text-primary-foreground hover:bg-primary/90 active:scale-95'
+                        : 'text-muted-foreground/30',
+                    )}
+                  >
+                    <ArrowUp size={15} strokeWidth={2.5} />
+                  </motion.button>
                 )}
-              >
-                <ArrowUp size={15} strokeWidth={2.5} />
-              </motion.button>
-            )}
-          </AnimatePresence>
+              </AnimatePresence>
+            </div>
+          </div>
         </div>
 
-        <p className="mt-2 text-center text-[10px] text-muted-foreground/30">
+        <p className="mt-2.5 text-center text-[10px] text-muted-foreground/30">
           AI-generated content may be inaccurate. Verify important information.
         </p>
       </div>
@@ -266,7 +297,10 @@ export default function ChatPanel() {
     onSessionCreated: handleSessionCreated,
   });
 
-  const { isLoading: isLoadingDetail } = useConversationDetail(currentSessionId);
+  const {
+    data: sessionDetail,
+    isLoading: isLoadingDetail,
+  } = useConversationDetail(currentSessionId);
 
   const handleSend = useCallback((content) => {
     sendMessage(content, {
@@ -281,7 +315,7 @@ export default function ChatPanel() {
   return (
     <div className="flex flex-1 flex-col min-w-0 bg-background">
       {/* ── Chat header ────────────────────────────────────────────── */}
-      {hasMessages && (
+      {(currentSessionId || hasMessages) && (
         <motion.div
           initial={{ opacity: 0, y: -4 }}
           animate={{ opacity: 1, y: 0 }}
@@ -289,7 +323,7 @@ export default function ChatPanel() {
           className="flex h-12 shrink-0 items-center border-b border-border/40 px-6"
         >
           <h3 className="text-[13px] font-medium text-foreground/70 truncate">
-            {currentSessionId ? 'Conversation' : 'New Conversation'}
+            {sessionDetail?.title || (currentSessionId ? 'Conversation' : 'New Conversation')}
           </h3>
         </motion.div>
       )}

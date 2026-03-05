@@ -107,3 +107,48 @@ export const MessageSchema = z.object({
 /** @typedef {z.infer<typeof ToolCallStatusSchema>} ToolCallStatus */
 /** @typedef {z.infer<typeof ToolCallSchema>} ToolCall */
 /** @typedef {z.infer<typeof MessageSchema>} Message */
+
+// ---------------------------------------------------------------------------
+// Session Schemas (ENGINE_API: GET /sessions, GET /sessions/{id})
+// ---------------------------------------------------------------------------
+
+/**
+ * Lifecycle status of a conversation session.
+ *
+ * - `active`  – session is in use.
+ * - `deleted` – soft-deleted by user or system.
+ */
+export const SessionStatusSchema = z.enum(['active', 'deleted']);
+
+/**
+ * Single session entity returned by the Engine API.
+ * Maps to `GET /sessions` list items and `GET /sessions/{id}` detail.
+ *
+ * This schema is the **single source of truth** for all session data flowing
+ * through the sidebar and query hooks.
+ */
+export const SessionItemSchema = z.object({
+  /** Unique session identifier. */
+  id: z.string(),
+  /** Owning tenant. */
+  tenantId: z.string().optional(),
+  /** Agent bound to this session (Agent mode). */
+  agentId: z.string().nullable().optional(),
+  /** Model bound to this session (direct-model mode). */
+  modelId: z.string().nullable().optional(),
+  /** Originating user. */
+  userId: z.string().nullable().optional(),
+  /** Human-readable session title. */
+  title: z.string(),
+  /** Lifecycle status. */
+  status: SessionStatusSchema,
+  /** ISO-8601 timestamp of the last message in this session. */
+  lastMessageAt: z.string().nullable().optional(),
+  /** ISO-8601 creation timestamp. */
+  createdAt: z.string(),
+  /** ISO-8601 last-update timestamp. */
+  updatedAt: z.string(),
+});
+
+/** @typedef {z.infer<typeof SessionStatusSchema>} SessionStatus */
+/** @typedef {z.infer<typeof SessionItemSchema>} SessionItem */

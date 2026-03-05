@@ -166,6 +166,7 @@ export function WorkflowCanvas({
         onConnect={onConnect}
         nodeTypes={NODE_TYPES}
         fitView
+        fitViewOptions={{ maxZoom: 1, padding: 0.4 }}
         proOptions={{ hideAttribution: true }}
       >
         <Background color="#ccc" gap={16} variant="dots" />
