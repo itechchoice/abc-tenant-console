@@ -1,11 +1,88 @@
-import { useState, useCallback } from 'react';
+import {
+  useState, useCallback, useRef, useEffect,
+} from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { PanelRightClose, PanelRight } from 'lucide-react';
+import { PanelRightClose, PanelRight, GripVertical } from 'lucide-react';
 import { useChatStore } from '@/stores/chatStore';
 import { WorkflowCanvas } from '@/components/Workflow/WorkflowCanvas';
 import { cn } from '@/lib/utils';
 import ConversationSidebar from './components/ConversationSidebar';
 import ChatPanel from './components/ChatPanel';
+
+// ---------------------------------------------------------------------------
+// Panel width constraints
+// ---------------------------------------------------------------------------
+
+const MIN_PANEL_WIDTH = 320;
+const DEFAULT_RATIO = 0.3;
+const MAX_RATIO = 0.6;
+const STORAGE_KEY = 'workflow-panel-width';
+
+/** @returns {number} */
+function getMaxWidth() {
+  return Math.round(window.innerWidth * MAX_RATIO);
+}
+
+/**
+ * Reads cached panel width from localStorage with defensive parsing.
+ * Falls back to 30% of viewport if the cache is missing or corrupt.
+ * @returns {number}
+ */
+function getInitialWidth() {
+  try {
+    const cached = localStorage.getItem(STORAGE_KEY);
+    if (cached !== null) {
+      const parsed = Number(cached);
+      if (Number.isFinite(parsed) && parsed > 0) {
+        return Math.max(MIN_PANEL_WIDTH, Math.min(parsed, getMaxWidth()));
+      }
+    }
+  } catch { /* localStorage may be blocked — fall through */ }
+  return Math.round(window.innerWidth * DEFAULT_RATIO);
+}
+
+// ---------------------------------------------------------------------------
+// Splitter (drag handle between chat and workflow canvas)
+// ---------------------------------------------------------------------------
+
+/**
+ * @param {object} props
+ * @param {(e: MouseEvent) => void} props.onMouseDown
+ * @param {boolean} props.isDragging
+ */
+function Splitter({ onMouseDown, isDragging }) {
+  return (
+    <div
+      role="separator"
+      aria-orientation="vertical"
+      aria-label="Resize workflow panel"
+      onMouseDown={onMouseDown}
+      className={cn(
+        'relative z-50 flex w-1.5 shrink-0 cursor-col-resize items-center justify-center',
+        'select-none transition-colors duration-150',
+        isDragging
+          ? 'bg-primary/25'
+          : 'bg-transparent hover:bg-primary/15',
+      )}
+    >
+      <div
+        className={cn(
+          'flex h-8 w-3.5 items-center justify-center rounded-full',
+          'transition-all duration-150',
+          isDragging
+            ? 'bg-primary/20 text-primary/70 scale-110'
+            : 'text-transparent hover:text-muted-foreground/40',
+        )}
+      >
+        <GripVertical size={10} strokeWidth={2.5} />
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Home
+// ---------------------------------------------------------------------------
 
 /**
  * Home — AI Console main workspace.
@@ -13,19 +90,66 @@ import ChatPanel from './components/ChatPanel';
  * Three-column split-screen layout:
  *   1. Left   – ConversationSidebar  (w-64, fixed session history)
  *   2. Center – ChatPanel            (flex-1, streaming chat interface)
- *   3. Right  – WorkflowCanvas       (w-[45%], collapsible agent execution graph)
+ *   3. Right  – WorkflowCanvas       (resizable, collapsible agent execution graph)
  *
  * The right panel auto-expands when the backend emits a `workflow_pending`
  * event (via `currentWorkflowId` in the store), and can be manually toggled
- * by the user at any time.
+ * by the user at any time. A draggable splitter allows free width adjustment.
  */
 function Home() {
   const currentWorkflowId = useChatStore((s) => s.currentWorkflowId);
   const [canvasVisible, setCanvasVisible] = useState(true);
+  const [panelWidth, setPanelWidth] = useState(getInitialWidth);
+  const [isDragging, setIsDragging] = useState(false);
+  const [fitViewTrigger, setFitViewTrigger] = useState(0);
+
+  const draggingRef = useRef(false);
 
   const toggleCanvas = useCallback(() => setCanvasVisible((v) => !v), []);
 
   const showCanvas = canvasVisible || !!currentWorkflowId;
+
+  // ── Keep MAX_WIDTH in sync on window resize ──────────────────────
+  useEffect(() => {
+    const handleResize = () => {
+      setPanelWidth((prev) => Math.min(prev, getMaxWidth()));
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // ── Drag handlers ────────────────────────────────────────────────
+  const handleMouseDown = useCallback((e) => {
+    e.preventDefault();
+    draggingRef.current = true;
+    setIsDragging(true);
+    document.body.style.userSelect = 'none';
+    document.body.style.cursor = 'col-resize';
+
+    const handleMouseMove = (/** @type {MouseEvent} */ moveEvent) => {
+      if (!draggingRef.current) return;
+      const newWidth = window.innerWidth - moveEvent.clientX;
+      const clamped = Math.max(MIN_PANEL_WIDTH, Math.min(newWidth, getMaxWidth()));
+      setPanelWidth(clamped);
+    };
+
+    const handleMouseUp = () => {
+      draggingRef.current = false;
+      setIsDragging(false);
+      document.body.style.userSelect = '';
+      document.body.style.cursor = '';
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+
+      setPanelWidth((final) => {
+        try { localStorage.setItem(STORAGE_KEY, String(final)); } catch { /* noop */ }
+        return final;
+      });
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  }, []);
 
   return (
     <div className="flex h-dvh w-full overflow-hidden">
@@ -53,19 +177,30 @@ function Home() {
         </button>
       </div>
 
-      {/* ── Right: Workflow canvas ─────────────────────────────────── */}
+      {/* ── Splitter + Right: Workflow canvas ──────────────────────── */}
       <AnimatePresence initial={false}>
         {showCanvas && (
-          <motion.aside
-            key="workflow-canvas"
+          <motion.div
+            key="workflow-panel"
             initial={{ width: 0, opacity: 0 }}
-            animate={{ width: '45%', opacity: 1 }}
+            animate={{ width: panelWidth, opacity: 1 }}
             exit={{ width: 0, opacity: 0 }}
-            transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-            className="shrink-0 overflow-hidden border-l border-border/40"
+            transition={
+              isDragging
+                ? { duration: 0 }
+                : { type: 'spring', stiffness: 300, damping: 30 }
+            }
+            onAnimationComplete={() => {
+              if (!draggingRef.current) setFitViewTrigger((n) => n + 1);
+            }}
+            className="flex shrink-0 overflow-hidden"
           >
-            <WorkflowCanvas className="h-full rounded-none border-0" />
-          </motion.aside>
+            <Splitter onMouseDown={handleMouseDown} isDragging={isDragging} />
+
+            <div className="flex-1 overflow-hidden border-l border-border/40">
+              <WorkflowCanvas className="h-full rounded-none border-0" fitViewTrigger={fitViewTrigger} />
+            </div>
+          </motion.div>
         )}
       </AnimatePresence>
     </div>

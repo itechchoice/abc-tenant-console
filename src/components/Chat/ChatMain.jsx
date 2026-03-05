@@ -165,8 +165,7 @@ const MessageRow = memo(({ msg, onInteractionSubmit }) => {
     );
   }
 
-  // ── Skip empty assistant placeholders (pending with no content yet)
-  if (msg.role === 'assistant' && !msg.content && msg.status !== 'streaming') {
+  if (msg.role === 'assistant' && !msg.content) {
     return null;
   }
 

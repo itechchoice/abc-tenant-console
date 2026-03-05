@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useRef } from 'react';
 import {
   ReactFlow,
+  ReactFlowProvider,
   Controls,
   Background,
   MiniMap,
   useNodesState,
   useEdgesState,
+  useReactFlow,
   addEdge,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
@@ -23,7 +25,10 @@ import { cn } from '@/lib/utils';
  *   Pre-built node array.  Falls back to built-in demo data when omitted.
  * @property {import('@xyflow/react').Edge[]} [initialEdges]
  *   Pre-built edge array.  Falls back to built-in demo data when omitted.
- * @property {string} [className]
+ * @property {string}  [className]
+ * @property {number}  [fitViewTrigger]
+ *   Monotonically increasing counter — each increment triggers a single
+ *   `fitView` call.  Driven by the parent's `onAnimationComplete`.
  */
 
 // ---------------------------------------------------------------------------
@@ -80,24 +85,19 @@ const DEFAULT_EDGES = [
 ];
 
 // ---------------------------------------------------------------------------
-// WorkflowCanvas
+// FlowContent (inner component — has access to useReactFlow)
 // ---------------------------------------------------------------------------
 
+/** @type {import('@xyflow/react').FitViewOptions} */
+const FIT_VIEW_OPTS = { maxZoom: 1, padding: 0.4, duration: 250 };
+
 /**
- * State-driven React Flow canvas that synchronises with the global
- * `chatStore.activeNodeId`.
- *
- * When the backend emits `node_pending` / `node_complete` events and the
- * SSE router updates `activeNodeId` in the store, this canvas
- * reactively highlights the executing node and animates the inbound edge.
- *
- * @param {WorkflowCanvasProps} props
+ * @param {object} props
+ * @param {import('@xyflow/react').Node[]} [props.initialNodes]
+ * @param {import('@xyflow/react').Edge[]} [props.initialEdges]
+ * @param {number} [props.fitViewTrigger]
  */
-export function WorkflowCanvas({
-  initialNodes,
-  initialEdges,
-  className,
-}) {
+function FlowContent({ initialNodes, initialEdges, fitViewTrigger = 0 }) {
   const [nodes, setNodes, onNodesChange] = useNodesState(
     initialNodes ?? DEFAULT_NODES,
   );
@@ -105,8 +105,15 @@ export function WorkflowCanvas({
     initialEdges ?? DEFAULT_EDGES,
   );
 
+  const { fitView } = useReactFlow();
   const activeNodeId = useChatStore((s) => s.activeNodeId);
   const prevActiveRef = useRef(null);
+
+  // ── fitView on animation-complete signal from parent ────────────
+  useEffect(() => {
+    if (fitViewTrigger === 0) return;
+    requestAnimationFrame(() => { fitView(FIT_VIEW_OPTS); });
+  }, [fitViewTrigger, fitView]);
 
   // ── Reactive node highlighting ──────────────────────────────────
   useEffect(() => {
@@ -152,12 +159,7 @@ export function WorkflowCanvas({
   );
 
   return (
-    <div
-      className={cn(
-        'h-full w-full overflow-hidden rounded-lg border border-border',
-        className,
-      )}
-    >
+    <div className="h-full w-full">
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -178,6 +180,48 @@ export function WorkflowCanvas({
           className="rounded-md! border! border-border! shadow-sm!"
         />
       </ReactFlow>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// WorkflowCanvas (public wrapper with ReactFlowProvider)
+// ---------------------------------------------------------------------------
+
+/**
+ * State-driven React Flow canvas that synchronises with the global
+ * `chatStore.activeNodeId`.
+ *
+ * When the backend emits `node_pending` / `node_complete` events and the
+ * SSE router updates `activeNodeId` in the store, this canvas
+ * reactively highlights the executing node and animates the inbound edge.
+ *
+ * The parent signals `fitView` via the `fitViewTrigger` prop (incremented
+ * on `onAnimationComplete`), ensuring the graph re-centres exactly once
+ * after the panel expand/collapse spring animation finishes — never during.
+ *
+ * @param {WorkflowCanvasProps} props
+ */
+export function WorkflowCanvas({
+  initialNodes,
+  initialEdges,
+  className,
+  fitViewTrigger,
+}) {
+  return (
+    <div
+      className={cn(
+        'h-full w-full overflow-hidden rounded-lg border border-border',
+        className,
+      )}
+    >
+      <ReactFlowProvider>
+        <FlowContent
+          initialNodes={initialNodes}
+          initialEdges={initialEdges}
+          fitViewTrigger={fitViewTrigger}
+        />
+      </ReactFlowProvider>
     </div>
   );
 }
