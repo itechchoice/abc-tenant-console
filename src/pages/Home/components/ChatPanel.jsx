@@ -140,6 +140,18 @@ const CHAT_MODES = [
   { value: 'model', label: 'Model' },
 ];
 
+const MODE_GLOW = {
+  auto: 'shadow-[0_1px_8px_rgba(0,0,0,0.04)] focus-within:shadow-[0_2px_16px_rgba(0,0,0,0.06)]',
+  agent: 'shadow-[0_1px_10px_rgba(217,170,75,0.08)] focus-within:shadow-[0_2px_20px_rgba(217,170,75,0.13)]',
+  model: 'shadow-[0_1px_10px_rgba(56,152,236,0.08)] focus-within:shadow-[0_2px_20px_rgba(56,152,236,0.13)]',
+};
+
+const MODE_TAB_ACTIVE = {
+  auto: 'bg-background text-foreground shadow-sm',
+  agent: 'bg-amber-50 text-amber-700 shadow-sm dark:bg-amber-950/40 dark:text-amber-400',
+  model: 'bg-sky-50 text-sky-700 shadow-sm dark:bg-sky-950/40 dark:text-sky-400',
+};
+
 // ---------------------------------------------------------------------------
 // ChatInput
 // ---------------------------------------------------------------------------
@@ -193,9 +205,9 @@ const ChatInput = memo(({ onSend, isLoading, onStop }) => {
         <div
           className={cn(
             'flex flex-col rounded-2xl border border-border/50',
-            'bg-background transition-all duration-200',
-            'shadow-[0_1px_8px_rgba(0,0,0,0.04)]',
-            'focus-within:shadow-[0_2px_16px_rgba(0,0,0,0.06)] focus-within:border-border',
+            'bg-background transition-all duration-300',
+            'focus-within:border-border',
+            MODE_GLOW[chatMode],
           )}
         >
           {/* ── Mode tabs ─────────────────────────────────────────── */}
@@ -209,7 +221,7 @@ const ChatInput = memo(({ onSend, isLoading, onStop }) => {
                   className={cn(
                     'rounded-md px-2.5 py-1 text-[11px] font-medium transition-all',
                     chatMode === mode.value
-                      ? 'bg-background text-foreground shadow-sm'
+                      ? MODE_TAB_ACTIVE[mode.value]
                       : 'text-muted-foreground/50 hover:text-muted-foreground',
                   )}
                 >
