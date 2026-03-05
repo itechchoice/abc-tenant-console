@@ -1,114 +1,259 @@
-# 🚀 ABC Tenant Console - 前端架构说明书 (Architecture Specification)
+# ABC Tenant Console — Frontend Architecture Specification
 
-## 1. 架构愿景与项目概览
-本项目是一个深度集成 **大语言模型 (LLM)** 与 **复杂节点工作流 (Workflow)** 的现代化前端应用。
-为了在保证极速构建与开发体验的同时，能够稳健承载大模型流式通信与庞大的图节点状态，项目确立了**“轻量级底座 + 专业领域引擎 + 严格运行时防线”**的架构设计思想。
-
----
-
-## 2. 核心底层技术栈 (Base Infrastructure)
-项目的基础骨架遵循极简且现代化的原则：
-- **核心框架**: React 18.3
-- **构建工具**: Vite 7
-- **样式方案**: TailwindCSS v4 (通过 `@tailwindcss/vite` 插件集成，无配置文件)
-- **包管理器**: pnpm
-- **语言规范**: **纯 JSX** (不使用 TypeScript，通过运行时校验弥补类型安全)
-- **代码检查**: ESLint 9 (Flat Config, Airbnb 规则基准)
-- **图标系统**: `lucide-react`
+> **Language Commitment**: 本项目坚定采用 **Pure JSX (纯 JSX) + JSDoc** 路线。
+> 项目中不存在任何 `.ts` / `.tsx` 文件，不使用 TypeScript 编译器。
+> 类型安全通过 **Zod Schema (SSOT)** + **JSDoc `@typedef` / `@param`** 在运行时与编辑器层面双重保障。
 
 ---
 
-## 3. 七大核心业务架构模块 (Core Modules)
+## 1. Architecture Vision (架构愿景)
 
-为了支撑复杂的 AI 业务，我们在基础框架之上引入了七大专业技术模块：
+本项目是一个深度集成 **Large Language Model (大语言模型)** 与 **Visual Workflow (可视化节点工作流)** 的现代化前端应用。架构设计思想为：
 
-### 模块一：基础网络与鉴权层 (Networking & Auth)
-- **选型**: `axios`（封装于 `src/http/client.js`，导出全局单例 `apiClient`）
-- **定位**: 所有常规 RESTful API 请求（增删改查、登录、配置拉取等）的**唯一出口**。内置 Token 自动注入（request interceptor）与 401 未授权拦截（response interceptor）。登录态通过 `src/stores/authStore.js` 使用 zustand `persist` 中间件持久化。
-- **架构红线**: 常规 HTTP 请求**严禁裸写 `fetch` 或直接 `axios.get`**，必须统一使用 `import { apiClient } from '@/http/client'`。大模型 SSE 流式通信则严格走 `@microsoft/fetch-event-source`，两条通道各司其职、互不混用。
-- **路由接力机制**: 请求 URL 经过三级接力到达真实后端：`Axios baseURL (/api)` → `Vite Proxy 拦截 (/api)` → `Rewrite 重写为 (/api/v1)` → 真实后端。因此代码中**严禁携带 `/api` 或 `/v1` 前缀**，只写纯业务路径：
-  - ❌ `apiClient.get('/api/v1/users')` — 会导致 404
-  - ✅ `apiClient.get('/users')` — 正确写法
+**"轻量级底座 + 专业领域引擎 + 严格运行时防线"**
 
-### 模块二：LLM 流式通信引擎 (Streaming Networking)
-- **选型**: `@microsoft/fetch-event-source`
-- **定位**: 替代原生的 `fetch` 和 `EventSource`，专职处理携带复杂 Body 的 `POST` 请求以及 Server-Sent Events (SSE) 流式响应。
-- **架构决策**: 明确**禁止使用 Vercel AI SDK (`ai`)**。因为后端提供了深度定制的 Agent 生命周期协议（如 `message_chunk`, `workflow_pending`, `client_interaction`），必须由前端实现一套精细化的事件路由分发器。
-
-### 模块三：复杂状态管理与同步 (Global State Management)
-- **选型**: `zustand`
-- **定位**: 替代 React Context 解决高频渲染问题。
-- **职责**: 负责承载跨组件的会话数据 (`messages`)、UI 交互打断状态，以及 React Flow 画布中节点运行的实时高亮状态。
-
-### 模块四：工作流可视化引擎 (Workflow Engine)
-- **选型**: `@xyflow/react` (原 React Flow)
-- **定位**: 支撑 AI 生成的可视化工作流。提供无限画布、节点拖拽、连线逻辑以及缩放引擎，作为 Agent 逻辑编排的视觉出口。
-
-### 模块五：生成式 UI 与富文本渲染 (Generative UI & Markdown)
-- **选型**: `react-markdown` + `remark-gfm` + `react-syntax-highlighter`
-- **定位**: 将大模型吐出的纯文本转化为高质量的视觉组件。不仅支持标准 Markdown、代码块高亮与表格，更通过组件分发机制，支持动态渲染“工具调用卡片 (Tool Call Card)”和“用户交互表单 (Interaction Form)”。
-
-### 模块六：服务端状态与缓存调度 (Server State & Caching)
-- **选型**: `@tanstack/react-query`
-- **定位**: 接管所有非 SSE 的传统 REST API 请求（如历史记录拉取、会话列表、草稿同步）。提供开箱即用的缓存控制、自动重试与乐观更新机制。
-
-### 模块七：UI 组件体系 (Component Library)
-- **选型**: `shadcn/ui`（纯 JSX 降维版）+ `framer-motion` + `lucide-react`
-- **定位**: 采用 **"Copy & Paste 源码重塑"** 模式——不通过 NPM 包引入 shadcn 组件，而是由 AI 读取官方 TS 实现后，手动转化为带完整 JSDoc 类型声明的纯 JSX 代码，存放于 `src/components/ui/`。动画层由 `framer-motion` 提供弹簧物理动效与页面过渡；图标统一使用 `lucide-react`。
-- **架构红线**: **严禁在终端运行 `npx shadcn add <component>`**。所有组件必须经过纯 JSX 降维后方可入库，且深度融合 English-Only UI 政策与 Vercel 设计规范。
-- **工具链**: `clsx` + `tailwind-merge` 封装为 `cn()` 工具函数（`src/lib/utils.js`），用于所有组件的动态类名拼接。
+所有从 0→1 规划的四大阶段——状态与通信引擎、运行时安全防线、生成式 UI、工作流可视化——均已完成核心代码落地。
 
 ---
 
-## 4. 关键架构决策记录 (Architecture Decision Records - ADR)
+## 2. Base Infrastructure (核心底层技术栈)
 
-### ADR 001: 纯 JSX 环境下的运行时边界防御
-- **背景**: 项目未采用 TypeScript，大模型返回的 JSON 数据具有极高的不确定性（幻觉）。
-- **决策**: 引入 **`zod`** 作为核心数据的运行时安检门。
-- **规范**: 任何从大模型解析出的 Tool Call 参数，或从远端加载的工作流 Nodes/Edges 数据，在写入 Zustand Store 或渲染到组件前，**必须**通过 Zod Schema 进行校验拦截。解析失败需抛出友好错误并支持自动重试，严禁因数据结构残缺导致页面白屏。
-
-### ADR 002: 自定义 SSE 状态分发路由
-- **背景**: 后端 SSE 接口下发多种高阶控制指令。
-- **决策**: 在 `useAgentChatStore` 中，基于 `fetchEventSource` 的 `onmessage` 建立统一的 `switch-case` 路由拦截器。
-- **规范**: 必须精确处理 `start`, `message_chunk`, `tool_call`, `client_interaction`, `workflow_pending`, `node_complete` 等自定义事件，统一修改全局状态，禁止在 UI 组件内部裸写网络请求逻辑。
-
-### ADR 003: 纯客户端的动态 UI 注册机制
-- **背景**: 无法使用 React Server Components，但需要实现聊天窗口内嵌入动态表单和工作流卡片。
-- **决策**: 实施**组件注册表与按类型分发**策略。
-- **规范**: 统一在 `ChatMain/MessageList` 组件中，根据 `msg.type`（如 `text`, `tool_call`, `interaction`）动态挂载不同的 React 组件。所有动态组件代码需收敛在 `src/components/GenerativeUI/` 目录下。
+| Layer | Choice |
+|-------|--------|
+| Framework | React 18.3 (CSR only, no Server Components) |
+| Build Tool | Vite 7 |
+| Styling | TailwindCSS v4 (`@tailwindcss/vite`, zero-config) |
+| Component Library | shadcn/ui (Pure JSX 降维版, Copy & Paste 模式) |
+| Animation Engine | framer-motion (弹簧物理动效 + 页面过渡) |
+| Icon System | lucide-react |
+| Utility | `cn()` — clsx + tailwind-merge (`src/lib/utils.js`) |
+| Linting | ESLint 9 (Flat Config, Airbnb 基准) |
+| Package Manager | pnpm |
+| Language | **Pure JSX** — TypeScript 严禁混入 |
 
 ---
 
-## 5. 工程与目录结构规范
+## 3. Core Architecture Layers (核心架构分层)
+
+### Layer 1: State & Network Engine (状态与通信层)
+
+本层是整个 AI Chat 应用的 **中央神经系统**，负责管理全局会话状态和大模型双向通信。
+
+#### 1a. Global State Brain — `useChatStore` (Zustand)
+
+`src/stores/chatStore.js` 作为中央数据大脑，使用 `zustand` 管理以下状态切片：
+
+| State Slice | Type | Description |
+|-------------|------|-------------|
+| `messages` | `Message[]` | 当前会话的全量消息流（按时序排列） |
+| `isTyping` | `boolean` | LLM 是否正在通过 SSE 流式吐字 |
+| `currentSessionId` | `string \| null` | 当前活跃会话 ID |
+| `currentWorkflowId` | `string \| null` | Agent 激活的工作流 ID |
+| `activeNodeId` | `string \| null` | 正在执行的工作流节点 ID（驱动画布呼吸灯） |
+
+**关键 Actions**：`addMessage` / `updateMessage`（流式追加）、`setWorkflowInfo`（原子更新工作流 + 节点状态）、`clearChat`（确定性状态重置）。
+
+所有 State 与 Actions 均通过严格的 **JSDoc `@typedef`** 标注，在纯 JS 环境中实现完美的 IntelliSense 补全。
+
+#### 1b. SSE Streaming Client — `useAgentChat` Hook
+
+`src/hooks/useAgentChat.js` 封装了完整的 LLM 流式对话生命周期：
+
+- **底层传输**：基于 `@microsoft/fetch-event-source`，以 `POST` + 自定义 Header（Bearer Token, X-Tenant-Id）发起 SSE 连接。
+- **Event Router (事件路由分发器)**：在 `onmessage` 回调中，通过 `switch (msg.event)` 精准拦截后端的全部自定义事件类型：
+
+| Event | Protocol | Handler |
+|-------|----------|---------|
+| `INIT` | v2 | 捕获 `sessionId`，写入 Store，触发 `onSessionCreated` 回调 |
+| `TEXT_CHUNK` | v2 | 实时追加 token delta 到 assistant message |
+| `COMPLETED` | v2 | 标记流结束，写入最终完整内容 |
+| `message_chunk` | legacy | 流式追加（兼容旧协议） |
+| `tool_call` | legacy | 创建 tool message，渲染 Tool Call Card |
+| `workflow_pending` / `node_pending` | — | 调用 `setWorkflowInfo` 驱动画布节点高亮 |
+| `node_complete` | — | 清除节点高亮 |
+| `client_interaction` | — | 中断流，渲染动态交互表单 |
+| `error` | — | 标记消息错误状态，停止 typing indicator |
+
+- **Optimistic Update (乐观更新)**：发送消息时立即插入用户气泡 + 占位 assistant 气泡，实现零延迟 UI 反馈。
+- **AbortController**：支持用户主动中断流式响应（`stopStream`）。
+
+#### 1c. Server State & Caching — React Query
+
+`src/hooks/useChatHistory.js` 使用 `@tanstack/react-query` 封装历史会话的读取：
+
+- `useConversations()` — 拉取会话列表（驱动侧边栏）
+- `useConversationDetail(sessionId)` — 加载单次会话详情，自动同步到 Zustand Store（`setMessages`）
+
+所有常规 REST 请求统一通过 `apiClient`（`src/http/client.js`，基于 axios 封装，含 Token 注入 + 401 拦截）发出。
+
+#### 1d. Networking Architecture Red Lines (网络架构红线)
+
+- SSE 流式通信 → `@microsoft/fetch-event-source`（唯一通道）
+- 常规 RESTful → `apiClient`（唯一出口）
+- **严禁**：裸写 `fetch`、直接 `axios.get`、`vercel/ai` 的 `useChat`、原生 `EventSource`
+- **路由接力**：`Axios baseURL (/api)` → `Vite Proxy (/api)` → `Rewrite (/api/v1)` → 真实后端。代码中严禁携带 `/api` 或 `/v1` 前缀。
+
+---
+
+### Layer 2: Runtime Security (运行时安全防线)
+
+在无 TypeScript 的纯 JSX 环境中，大模型返回的 JSON 具有极高的不确定性（Hallucination / 幻觉）。本层基于 `zod` 构建了一道运行时安检门。
+
+#### 2a. Schema Registry (Schema 注册表)
+
+`src/schemas/` 目录下按领域维护 Zod Schema 定义：
+
+| File | Coverage |
+|------|----------|
+| `chatSchema.js` | `MessageSchema`、`ToolCallSchema`、`MessageRoleSchema`、`MessageStatusSchema` — 消息管道的 SSOT |
+| `aiResponseSchemas.js` | `toolCallArgsSchema`、`interactionWidgetSchema`、`interactionPayloadSchema` — AI 结构化输出的防线 |
+
+每个 Schema 文件底部均通过 `z.infer<typeof ...>` + `@typedef` 导出 JSDoc 类型，确保在纯 JS 中获得完美的 IDE 提示。
+
+#### 2b. Defensive Parsing (防御性解析)
+
+- 所有从 SSE payload 解析出的 JSON 数据，在写入 Zustand Store 或渲染到组件前，必须通过对应 Schema 的 `.parse()` 或 `.safeParse()` 校验。
+- 解析失败时，在 Store 层 `try-catch` 捕获，抛出友好错误提示，**严禁异常导致 React 渲染树崩溃（白屏）**。
+- 工具函数 `safeParseAIJson` 封装了完整的容错闭环，必要时可触发 LLM 重试。
+
+---
+
+### Layer 3: Generative UI (生成式界面)
+
+本层将大模型吐出的非结构化文本和结构化指令，转化为高质量的可交互视觉组件。所有生成式组件收敛在 `src/components/GenerativeUI/` 目录下。
+
+#### 3a. Polymorphic Message Dispatcher (多态消息分发器)
+
+`ChatPanel` 组件中的消息列表根据 `msg.role` + `msg.metadata.type` 进行类型分发，动态挂载不同的渲染组件：
+
+| `msg` 类型 | 渲染组件 | 说明 |
+|------------|----------|------|
+| `role: 'user'` | 用户气泡 | 纯文本，右对齐 |
+| `role: 'assistant'` (text) | `MarkdownMessage` | 富文本渲染 |
+| `metadata.type: 'tool_call'` | `ToolCallCard` | 工具调用流转卡片 |
+| `metadata.type: 'interaction'` | `InteractionForm` | 动态交互表单 |
+
+#### 3b. `MarkdownMessage` — AI Rich Text Renderer (富文本渲染引擎)
+
+`src/components/GenerativeUI/MarkdownMessage.jsx`
+
+- **渲染管线**：`react-markdown` → `remark-gfm`（表格 / 删除线 / 任务列表）→ 自定义 `components` 覆盖
+- **代码高亮**：通过 `react-syntax-highlighter` + `oneDark` 主题实现语法着色，内置独立的 `CodeBlock` 子组件（`memo` 隔离复制状态，避免父级重渲染）
+- **Copy to Clipboard**：每个代码块右上角带有 `Copy / Copied` 按钮，使用 `framer-motion` `AnimatePresence` 实现切换动效
+
+#### 3c. `ToolCallCard` — Tool Execution Lifecycle Card (工具调用流转卡片)
+
+`src/components/GenerativeUI/ToolCallCard.jsx`
+
+按 `status` 渲染三态 UI：
+- `pending` → 脉冲加载动效 (`Loader2` spinning)
+- `success` → 成功摘要（可折叠的 JSON 结果面板）
+- `error` → 错误状态（`AlertTriangle` 图标 + 错误信息）
+
+#### 3d. `InteractionForm` — Dynamic Client Interaction (动态交互表单)
+
+`src/components/GenerativeUI/InteractionForm.jsx`
+
+当后端下发 `client_interaction` 事件时，根据 `widgets` 数组动态渲染：
+- `input` → 自由文本输入框
+- `select` → 下拉选择器
+- `button` → 操作触发按钮
+
+用户提交后通过 `onSubmit` 回调将 `{ actionId, formData }` 回传，恢复被中断的对话流。组件入参通过 `interactionWidgetSchema` 强校验。
+
+---
+
+### Layer 4: Workflow Canvas (可视化工作流引擎)
+
+基于 `@xyflow/react` (React Flow) 构建的响应式连线画布，作为 Agent 逻辑编排的视觉出口。
+
+#### 4a. Canvas Foundation
+
+- `<ReactFlow />` 核心组件提供无限画布、节点拖拽、连线逻辑与缩放控制
+- 自定义 `AgentNode` 节点类型，通过 React Flow 的 `nodeTypes` 注册机制挂载
+
+#### 4b. Breathing Light Effect (实时呼吸灯联动)
+
+画布通过订阅 Zustand Store 中的 `activeNodeId` 实现状态驱动的视觉反馈：
+
+1. 后端 SSE 下发 `node_pending` 事件 → `useAgentChat` Event Router 调用 `setWorkflowInfo(workflowId, nodeId)`
+2. Zustand Store 更新 `activeNodeId`
+3. React Flow 画布中对应的 `AgentNode` 检测到自身 ID 匹配，激活呼吸灯 CSS 动效（脉冲边框 + 发光阴影）
+4. 后端下发 `node_complete` → `setWorkflowInfo(workflowId, null)` → 呼吸灯熄灭
+
+整条链路 **零手动 DOM 操作**，完全由 Zustand Selector → React re-render 驱动。
+
+---
+
+## 4. Architecture Decision Records (关键架构决策记录)
+
+### ADR 001: Pure JSX + Zod 的运行时边界防御
+- **背景**: 项目不使用 TypeScript，LLM 返回的 JSON 具有极高不确定性。
+- **决策**: 以 `zod` Schema 为 SSOT，`JSDoc @typedef` 为编辑器类型推导工具。
+- **规范**: 所有外部数据写入 Store 前必须 Schema 校验，失败时友好降级，严禁白屏。
+
+### ADR 002: 自定义 SSE Event Router
+- **背景**: 后端 SSE 接口下发 10+ 种高阶控制指令，远超标准 AI SDK 承载范围。
+- **决策**: 在 `useAgentChat` Hook 中基于 `fetchEventSource` 的 `onmessage` 实现精细化 `switch-case` 路由。
+- **规范**: 同时兼容 v2 协议（`INIT` / `TEXT_CHUNK` / `COMPLETED`）和 legacy 协议（`message_chunk` / `complete`），所有状态变动统一通过 Zustand `set` 派发。
+
+### ADR 003: Generative UI — Component Registry & Type Dispatch
+- **背景**: 纯客户端渲染，无法使用 React Server Components，但需在聊天窗口内嵌入动态表单和工具卡片。
+- **决策**: 基于 `msg.type` 在消息列表中进行多态组件分发。
+- **规范**: 所有生成式组件收敛于 `src/components/GenerativeUI/`，新增组件类型时只需扩展分发映射表。
+
+### ADR 004: shadcn/ui — Copy & Paste Pure JSX 降维
+- **背景**: 需要高质量基础组件库，但 shadcn CLI 生成的代码含 TypeScript。
+- **决策**: 由 AI 读取 shadcn 官方 TS 源码，手动转化为带完整 JSDoc 注释的纯 JSX，存放于 `src/components/ui/`。
+- **规范**: **严禁运行 `npx shadcn add`**，所有组件必须保留 `cn()` 动态类名拼接逻辑。
+
+---
+
+## 5. Directory Structure (工程目录结构)
 
 ```text
 src/
-  assets/              # 静态资源（图片存放至 images/，禁止使用外部过期 URL）
-  components/          # 全局跨页面复用组件 (含 AppRail, Sidebar 等)
-    ui/              # shadcn/ui 纯 JSX 降维组件 (Button, Dialog, Input 等)
-    GenerativeUI/    # AI 动态生成的交互组件 (Tool Cards, Forms)
+  assets/              # Static resources (images → images/, no external expired URLs)
+  components/          # Global cross-page reusable components
+    ui/              # shadcn/ui Pure JSX components (Button, Dialog, Input …)
+    GenerativeUI/    # AI-driven polymorphic components
+      MarkdownMessage.jsx   # Rich-text renderer (react-markdown + syntax highlight)
+      ToolCallCard.jsx      # Tool execution lifecycle card (3-state UI)
+      InteractionForm.jsx   # Dynamic client interaction form
   lib/
-    utils.js         # cn() 工具函数 (clsx + tailwind-merge)
-  http/                # axios 封装 (client.js 导出全局 apiClient 单例)
-  hooks/               # 封装后的 React Query 等自定义 Hook
-  pages/               # 页面级组件 (必须以文件夹组织)
-    Home/              
-      index.jsx        # 页面入口
-      components/      # 仅在 Home 页面私有的组件
-  stores/              # Zustand 状态切片 (如 chatStore.js, workflowStore.js)
-  utils/               
-    schemas/           # Zod 运行时校验规则文件
-  router.jsx           # 全局路由配置
-
+    utils.js         # cn() utility (clsx + tailwind-merge)
+  http/
+    client.js        # axios singleton (Token injection + 401 interception)
+  hooks/
+    useAgentChat.js  # SSE streaming lifecycle + event router
+    useChatHistory.js# React Query wrappers for conversation CRUD
+  stores/
+    chatStore.js     # Zustand — central chat + workflow state brain
+    authStore.js     # Zustand + persist — login credentials & token
+  schemas/
+    chatSchema.js    # Zod SSOT — Message, ToolCall, Role, Status
+    aiResponseSchemas.js  # Zod — Tool Call args, Interaction widgets
+  pages/               # Page-level components (folder-per-page)
+    Home/
+      index.jsx        # Page entry — assembles local components
+      components/      # Page-private components
+        ChatPanel.jsx          # Chat interface (input + message list)
+        ConversationSidebar.jsx# History sidebar
+    Login/
+      index.jsx
+    NotFound/
+      index.jsx
+  router.jsx           # Global route configuration
 ```
 
 ---
 
-## 6. AI Agent 辅助编程约束
+## 6. AI Agent Programming Constraints (AI Agent 辅助编程约束)
 
 所有参与本工程代码生成的 AI Agent（包括 Cursor / Copilot 等），必须在编码前读取并遵循 `.cursor/rules/` 目录下的所有 `.mdc` 规则文件：
 
-* 严格遵循纯 JSX 规范与 Tailwind 优先原则。
-* 绝不擅自引入第三方竞品库（如 `vercel/ai`）。
-* 组件修改必须符合上述 ADR 架构决策。
-* **English-Only UI**：所有面向用户的界面文本（按钮、表头、Placeholder、Toast、空态文案等）必须使用专业英文，严禁在 JSX/JS 代码中出现中文字符。即使 API 文档或 Prompt 为中文，AI Agent 也必须自动翻译为地道的英文后再生成代码。
+- 严格遵循 **Pure JSX** 规范与 **TailwindCSS-first** 原则，严禁混入任何 TypeScript 语法。
+- 绝不擅自引入第三方竞品库（如 `vercel/ai`），绝不运行 `npx shadcn add`。
+- 所有状态变动必须通过 Zustand `set` / `get()` 派发，禁止在 UI 组件内裸写网络请求逻辑。
+- 组件修改必须符合上述 ADR 架构决策。
+- **English-Only UI**: 所有面向用户的界面文本必须使用专业英文，严禁在 JSX/JS 代码中出现中文字符。即使 API 文档或 Prompt 为中文，也必须自动翻译为地道英文后再生成代码。

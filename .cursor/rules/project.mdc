@@ -53,7 +53,9 @@ src/
   index.css             # 全局样式（含 TailwindCSS 导入）
   components/           # 跨页面复用的通用组件
     ui/               # shadcn/ui 纯 JSX 降维组件（Button、Dialog、Input 等）
-    GenerativeUI/     # AI 动态生成的交互组件（Tool Cards、Forms）
+    GenerativeUI/     # AI 动态生成的交互组件（MarkdownMessage、ToolCallCard、InteractionForm）
+    Workflow/         # React Flow 核心画布与节点层
+      nodes/          # AI 专属自定义节点（如 AgentNode）
   lib/
     utils.js          # cn() 工具函数（clsx + tailwind-merge）
   http/                 # axios 封装（client.js 导出全局 apiClient 单例，含 Token 注入与 401 拦截）
@@ -68,6 +70,7 @@ src/
     NotFound/
       index.jsx
   utils/                # 工具函数
+    safeParser.js     # 基于 Zod 的 AI JSON 数据安全解析防线
   assets/               # 静态资源（图片、字体等）
 ```
 

@@ -10,7 +10,7 @@ globs: ["api/**/*.md"]
 
 ### Step 1: 数据防线 (Zod Schema)
 - 读取 API 文档的 Request/Response 结构。
-- 在 `src/utils/schemas/` 目录下生成对应的 Zod Schema 文件（如 `tenantSchema.js`）。
+- 在 `src/schemas/` 目录下生成对应的 Zod Schema 文件（如 `tenantSchema.js`）。
 
 ### Step 2: 服务端状态 (React Query Hook)
 - 在 `src/hooks/` 目录下创建自定义 Hook，使用 `@tanstack/react-query` 封装 API 请求。
