@@ -152,6 +152,19 @@ const MODE_TAB_ACTIVE = {
   model: 'bg-sky-50 text-sky-700 shadow-sm dark:bg-sky-950/40 dark:text-sky-400',
 };
 
+/**
+ * Toggle the "burst ripple" micro-interaction on mode switch.
+ * `true`  → border flash + outward ripple dissolving into colored shadow.
+ * `false` → plain colored-shadow crossfade only (no ripple).
+ */
+const ENABLE_MODE_BURST = true;
+
+const MODE_BURST_COLOR = {
+  auto: 'transparent',
+  agent: 'rgba(217,170,75,0.45)',
+  model: 'rgba(56,152,236,0.45)',
+};
+
 // ---------------------------------------------------------------------------
 // ChatInput
 // ---------------------------------------------------------------------------
@@ -162,6 +175,15 @@ const ChatInput = memo(({ onSend, isLoading, onStop }) => {
 
   const chatMode = useChatStore((s) => s.chatMode);
   const setChatMode = useChatStore((s) => s.setChatMode);
+
+  const [burstKey, setBurstKey] = useState(0);
+  const prevModeRef = useRef(chatMode);
+  useEffect(() => {
+    if (prevModeRef.current !== chatMode && chatMode !== 'auto') {
+      setBurstKey((k) => k + 1);
+    }
+    prevModeRef.current = chatMode;
+  }, [chatMode]);
 
   const resetHeight = useCallback(() => {
     const el = textareaRef.current;
@@ -202,14 +224,29 @@ const ChatInput = memo(({ onSend, isLoading, onStop }) => {
   return (
     <div className="px-4 pb-4 pt-2">
       <div className="mx-auto max-w-3xl">
-        <div
-          className={cn(
-            'flex flex-col rounded-2xl border border-border/50',
-            'bg-background transition-all duration-300',
-            'focus-within:border-border',
-            MODE_GLOW[chatMode],
-          )}
-        >
+        <div className="relative">
+          {/* ── Burst ripple layer (controlled by ENABLE_MODE_BURST) ── */}
+          <AnimatePresence>
+            {ENABLE_MODE_BURST && chatMode !== 'auto' && burstKey > 0 && (
+              <motion.div
+                key={`burst-${burstKey}`}
+                initial={{ opacity: 0.6, scale: 1 }}
+                animate={{ opacity: 0, scale: 1.03 }}
+                transition={{ duration: 0.5, ease: 'easeOut' }}
+                className="pointer-events-none absolute inset-0 z-10 rounded-2xl"
+                style={{ boxShadow: `0 0 0 2px ${MODE_BURST_COLOR[chatMode]}` }}
+              />
+            )}
+          </AnimatePresence>
+
+          <div
+            className={cn(
+              'relative flex flex-col rounded-2xl border border-border/50',
+              'bg-background transition-all duration-300',
+              'focus-within:border-border',
+              MODE_GLOW[chatMode],
+            )}
+          >
           {/* ── Mode tabs ─────────────────────────────────────────── */}
           <div className="px-4 pt-3 pb-0.5">
             <div className="inline-flex items-center gap-0.5 rounded-lg bg-muted/40 p-0.5">
@@ -306,6 +343,7 @@ const ChatInput = memo(({ onSend, isLoading, onStop }) => {
               </AnimatePresence>
             </div>
           </div>
+        </div>
         </div>
 
         <p className="mt-2.5 text-center text-[10px] text-muted-foreground/30">
