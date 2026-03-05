@@ -39,14 +39,14 @@ export const AssignedProviderSchema = z.object({
   tenantId: z.string().optional(),
   /** Human-readable provider name (e.g. "OpenAI", "My DeepSeek"). */
   name: z.string(),
-  /** Backend API compatibility type. */
-  type: ProviderTypeSchema,
+  /** Backend API compatibility type (extensible — backends may register custom types). */
+  type: z.string(),
   /** Masked API key (read-only, never sent in full). */
-  apiKey: z.string().optional(),
+  apiKey: z.string().nullable().optional(),
   /** Provider base URL. */
-  baseUrl: z.string().optional(),
+  baseUrl: z.string().nullable().optional(),
   /** JSON-encoded extra configuration. */
-  config: z.string().optional(),
+  config: z.string().nullable().optional(),
   /** Lifecycle status. */
   status: ProviderStatusSchema,
   /** ISO-8601 creation timestamp. */

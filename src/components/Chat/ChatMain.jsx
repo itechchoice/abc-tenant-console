@@ -165,6 +165,11 @@ const MessageRow = memo(({ msg, onInteractionSubmit }) => {
     );
   }
 
+  // ── Skip empty assistant placeholders (pending with no content yet)
+  if (msg.role === 'assistant' && !msg.content && msg.status !== 'streaming') {
+    return null;
+  }
+
   // ── User / Assistant text bubble ────────────────────────────────
   const isUser = msg.role === 'user';
 
