@@ -1317,6 +1317,172 @@ DELETE /models/pools/rules/{id}
 |---|---|---|---|---|---|
 | code|integer|true|none||状态码|
 
+# 租户模型分配 (Tenant Provider Assignment)
+
+## POST 分配平台模型给租户
+
+POST /models/providers/{providerId}/tenants
+
+将一个平台级 Provider（tenantId=system）分配给指定租户使用。
+
+> Body 请求参数
+
+```json
+{
+  "tenantId": "tenant_dychoice"
+}
+```
+
+### 请求参数
+
+|名称|位置|类型|必选|说明|
+|---|---|---|---|---|
+|providerId|path|string| 是 |平台 Provider ID|
+|body|body|object| 是 |none|
+| tenantId|body|string| 是 |目标租户ID|
+
+> 返回示例
+
+> 200 Response
+
+```json
+{
+  "code": 0,
+  "data": {
+    "id": "tp_001",
+    "tenantId": "tenant_dychoice",
+    "providerId": "prov_001",
+    "status": "active",
+    "createdAt": "2026-03-05T12:00:00Z"
+  }
+}
+```
+
+### 返回结果
+
+|状态码|状态码含义|说明|数据模型|
+|---|---|---|---|
+|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|分配成功|Inline|
+|400|[Bad Request](https://tools.ietf.org/html/rfc7231#section-6.5.1)|只能分配平台级 Provider / 已分配|Inline|
+
+## DELETE 撤销租户模型分配
+
+DELETE /models/providers/{providerId}/tenants/{tenantId}
+
+### 请求参数
+
+|名称|位置|类型|必选|说明|
+|---|---|---|---|---|
+|providerId|path|string| 是 |Provider ID|
+|tenantId|path|string| 是 |租户ID|
+
+> 返回示例
+
+> 200 Response
+
+```json
+{
+  "code": 0
+}
+```
+
+### 返回结果
+
+|状态码|状态码含义|说明|数据模型|
+|---|---|---|---|
+|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|撤销成功|Inline|
+|404|[Not Found](https://tools.ietf.org/html/rfc7231#section-6.5.4)|分配记录不存在|Inline|
+
+## GET 查看 Provider 已分配的租户
+
+GET /models/providers/{providerId}/tenants
+
+### 请求参数
+
+|名称|位置|类型|必选|说明|
+|---|---|---|---|---|
+|providerId|path|string| 是 |Provider ID|
+
+> 返回示例
+
+> 200 Response
+
+```json
+{
+  "code": 0,
+  "data": [
+    {
+      "id": "tp_001",
+      "tenantId": "tenant_dychoice",
+      "providerId": "prov_001",
+      "status": "active",
+      "createdAt": "2026-03-05T12:00:00Z"
+    }
+  ]
+}
+```
+
+### 返回结果
+
+|状态码|状态码含义|说明|数据模型|
+|---|---|---|---|
+|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|none|Inline|
+
+## GET 查看租户可用的 Provider 列表
+
+GET /models/providers/assigned
+
+返回租户自有的 Provider + 平台分配给该租户的 Provider。
+
+### 请求参数
+
+|名称|位置|类型|必选|说明|
+|---|---|---|---|---|
+|X-Tenant-Id|header|string| 是 |租户ID|
+
+> 返回示例
+
+> 200 Response
+
+```json
+{
+  "code": 0,
+  "data": [
+    {
+      "id": "prov_001",
+      "tenantId": "system",
+      "name": "OpenAI",
+      "type": "openai",
+      "apiKey": "sk-proj-***",
+      "status": "active"
+    },
+    {
+      "id": "prov_tenant_001",
+      "tenantId": "tenant_dychoice",
+      "name": "My DeepSeek",
+      "type": "openai",
+      "apiKey": "sk-xxxx***",
+      "status": "active"
+    }
+  ]
+}
+```
+
+### 返回结果
+
+|状态码|状态码含义|说明|数据模型|
+|---|---|---|---|
+|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|none|Inline|
+
+### 模型访问权限说明
+
+| 角色 | GET /models/providers | 可用模型范围 |
+|------|----------------------|-------------|
+| 平台管理员 (tenantId=system/*) | 返回所有 Provider | 所有模型 |
+| 租户用户 | 返回自有 + 已分配的 Provider | 仅可访问的模型 |
+
+租户调用 LLM 时（chat/task），ModelRouter 会自动校验 Provider 是否对该租户可用。未分配的平台模型对租户不可见、不可调用。
+
 # 健康检查
 
 ## GET 健康检查
