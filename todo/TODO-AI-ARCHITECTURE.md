@@ -2,6 +2,25 @@
 
 本列表基于已确定的技术底座（纯 JSX + Zustand + React Flow + Zod + FetchEventSource）制定，是系统架构的实施蓝图。
 
+## 第 0 阶段：系统级底层基建 (System Foundation) - ✅ 已完成
+
+### 架构规则与 AI 上下文注入 (AI Context & Rules)
+- [x] **定义全局工程规范**：配置 `.cursor/rules/project.mdc`，明确纯 JSX 架构、English-Only UI、Tailwind 优先等红线。
+- [x] **建立自动化工作流**：编写 `workflow-api-to-ui.mdc`，强制规范从 API 文档到高品质 UI 渲染的标准化 4 步流转（模型定义 -> 数据请求 -> 骨架拆分 -> UI 组装）。
+- [x] **注入顶级前端思维**：引入 `.agents/skills/` 系列技能库（包含 `vercel-composition-patterns`、`design-taste-frontend` 等），覆盖大模型默认的劣质代码偏好。
+- [x] **锁定目录与拆分规则**：明确 `src/pages/` 与 `src/components/` 的边界，强制要求页面级子组件“就近存放”（Local Components 拆分原则）。
+
+### 基础网络与鉴权层 (Networking & Auth)
+- [x] **持久化鉴权状态**：基于 `zustand` 的 `persist` 中间件创建 `src/stores/authStore.js`，安全存储及管理 Token 与用户信息。
+- [x] **封装 HTTP 核心单例**：引入 `axios`，在 `src/http/client.js` 中封装全局请求客户端，实现 Token 自动注入与 `401 Unauthorized` 全局拦截登出。
+- [x] **确立路径剥离原则**：在代码生成规则中强制约束，业务代码中发起请求时必须剥离 `/api/v1` 等前缀，由底层全权接管。
+- [x] **构建多环境动态代理**：改造 `vite.config.js`，利用 `loadEnv` 结合 `command/mode`，实现根据不同的本地启动命令 (`pnpm dev:staging` 等) 动态读取 `.env` 中的 `VITE_PROXY_TARGET` 跨域转发。
+
+### 视觉与组件引擎 (UI & Component Engine)
+- [x] **引入降维版 shadcn/ui**：执行 CLI 初始化，严格绕过 TypeScript 限制（选择 `no`），确立纯 JSX 环境下的 Copy & Paste 组件重塑模式。
+- [x] **部署高级动效与图标引擎**：引入 `framer-motion` (弹簧物理动效) 与 `lucide-react` (专业线性图标)，为后续 AI 复杂交互提供原子级支撑。
+- [x] **确立组件生成红线**：禁止使用 CLI 添加自带 TS 的组件。所有 shadcn 组件必须由 AI 读取官方 TS 源码后，翻译为带有完美 JSDoc 注释类型的纯 JSX 代码（如 `button.jsx` 测试验证通过）。
+
 ## 核心基建阶段 (Core Infrastructure)
 
 ### 阶段一：底层状态与通信引擎 (State & Networking)
