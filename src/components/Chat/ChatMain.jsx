@@ -47,8 +47,6 @@ const dotTransition = {
   duration: 0.4, repeat: Infinity, repeatType: 'reverse', ease: 'easeInOut',
 };
 
-const AUTO_SCROLL_THRESHOLD = 96;
-
 const TypingIndicator = memo(() => (
   <div className="flex items-start gap-3 px-4 py-2">
     <Avatar author="assistant" />
@@ -229,77 +227,18 @@ export function ChatMain({ className, onInteractionSubmit }) {
   const endRef = useRef(null);
   const scrollContainerRef = useRef(null);
   const topSentinelRef = useRef(null);
-  const contentRef = useRef(null);
 
   /** @type {import('react').MutableRefObject<{scrollHeight:number,scrollTop:number}|null>} */
   const pendingAnchorRef = useRef(null);
-  const shouldStickToBottomRef = useRef(true);
-  const scrollRafRef = useRef(null);
 
   const lastMessage = messages[messages.length - 1];
-  const lastMessageId = lastMessage?.id;
 
-  const updateStickiness = useCallback(() => {
-    const container = scrollContainerRef.current;
-    if (!container) return;
-
-    const distanceFromBottom = container.scrollHeight
-      - container.scrollTop
-      - container.clientHeight;
-    shouldStickToBottomRef.current = distanceFromBottom <= AUTO_SCROLL_THRESHOLD;
-  }, []);
-
-  const scheduleScrollToBottom = useCallback(() => {
-    if (scrollRafRef.current !== null) return;
-
-    scrollRafRef.current = requestAnimationFrame(() => {
-      scrollRafRef.current = null;
-
-      const container = scrollContainerRef.current;
-      if (!container || !shouldStickToBottomRef.current) return;
-
-      container.scrollTop = container.scrollHeight;
-    });
-  }, []);
-
-  // ── Keep track of whether the user is still pinned near the bottom ──
+  // ── Auto scroll to bottom on new messages / streaming tokens ────
   useEffect(() => {
-    const container = scrollContainerRef.current;
-    if (!container) return undefined;
-
-    updateStickiness();
-
-    const handleScroll = () => {
-      updateStickiness();
-    };
-
-    container.addEventListener('scroll', handleScroll, { passive: true });
-    return () => container.removeEventListener('scroll', handleScroll);
-  }, [updateStickiness]);
-
-  useEffect(() => () => {
-    if (scrollRafRef.current !== null) {
-      cancelAnimationFrame(scrollRafRef.current);
+    if (!isLoadingMore) {
+      endRef.current?.scrollIntoView({ behavior: 'auto' });
     }
-  }, []);
-
-  // ── Follow height growth from streaming text / markdown reflow ──
-  useEffect(() => {
-    const contentEl = contentRef.current;
-    if (!contentEl || typeof ResizeObserver === 'undefined') return undefined;
-
-    const observer = new ResizeObserver(() => {
-      scheduleScrollToBottom();
-    });
-
-    observer.observe(contentEl);
-    return () => observer.disconnect();
-  }, [scheduleScrollToBottom]);
-
-  // ── Scroll on message append / streaming updates only when pinned ──
-  useEffect(() => {
-    scheduleScrollToBottom();
-  }, [lastMessageId, isTyping, lastMessage?.content, scheduleScrollToBottom]);
+  }, [messages.length, isTyping, lastMessage?.content, isLoadingMore]);
 
   // ── Scroll anchoring after prepend ──────────────────────────────
   useLayoutEffect(() => {
@@ -382,7 +321,7 @@ export function ChatMain({ className, onInteractionSubmit }) {
       className={cn('flex flex-1 flex-col overflow-y-auto', className)}
       style={{ overflowAnchor: 'none' }}
     >
-      <div ref={contentRef} className="mx-auto w-full max-w-3xl py-6">
+      <div className="mx-auto w-full max-w-3xl py-6">
         {/* ── Top sentinel / loading indicator ───────────────────── */}
         {hasMore && (
           <div ref={topSentinelRef} className="flex justify-center py-3">
