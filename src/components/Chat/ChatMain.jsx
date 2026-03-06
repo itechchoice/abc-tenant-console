@@ -220,10 +220,11 @@ export function ChatMain({ className, onInteractionSubmit }) {
   const messages = useChatStore((s) => s.messages);
   const isTyping = useChatStore((s) => s.isTyping);
   const endRef = useRef(null);
+  const lastMessage = messages[messages.length - 1];
 
   useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages.length, isTyping]);
+    endRef.current?.scrollIntoView({ behavior: 'auto' });
+  }, [messages.length, isTyping, lastMessage?.content]);
 
   const handleInteractionSubmit = useCallback(
     (payload) => { onInteractionSubmit?.(payload); },
