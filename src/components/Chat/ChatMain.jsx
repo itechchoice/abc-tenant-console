@@ -1,5 +1,5 @@
 import {
-  useRef, useEffect, useLayoutEffect, useCallback, memo,
+  useRef, useEffect, useLayoutEffect, useCallback, memo, useState,
 } from 'react';
 import { motion } from 'framer-motion';
 import { Bot, User, Loader2 } from 'lucide-react';
@@ -51,6 +51,9 @@ const dotTransition = {
   duration: 0.4, repeat: Infinity, repeatType: 'reverse', ease: 'easeInOut',
 };
 
+const AUTO_SCROLL_THRESHOLD = 96;
+const TYPEWRITER_CURSOR_CLASS = 'ml-0.5 inline-block h-[1.1em] w-px animate-pulse rounded-full bg-current align-[-0.18em] opacity-60';
+
 const TypingIndicator = memo(() => (
   <div className="flex items-start gap-3 px-4 py-2">
     <Avatar author="assistant" />
@@ -91,6 +94,48 @@ function Avatar({ author }) {
     </div>
   );
 }
+
+// ---------------------------------------------------------------------------
+// StreamingAssistantContent
+// ---------------------------------------------------------------------------
+
+/**
+ * @param {{ content: string, isStreaming: boolean }} props
+ */
+const StreamingAssistantContent = memo(({ content, isStreaming }) => {
+  const [visibleCount, setVisibleCount] = useState(content.length);
+
+  useEffect(() => {
+    if (!isStreaming) {
+      setVisibleCount(content.length);
+      return undefined;
+    }
+
+    if (visibleCount >= content.length) return undefined;
+
+    const frameId = requestAnimationFrame(() => {
+      const remaining = content.length - visibleCount;
+      const step = remaining > 120 ? 6 : remaining > 48 ? 3 : 1;
+      setVisibleCount((prev) => Math.min(content.length, prev + step));
+    });
+
+    return () => cancelAnimationFrame(frameId);
+  }, [content, isStreaming, visibleCount]);
+
+  const displayContent = isStreaming ? content.slice(0, visibleCount) : content;
+
+  if (!displayContent && !isStreaming) return null;
+
+  return isStreaming ? (
+    <p className="whitespace-pre-wrap text-sm leading-relaxed">
+      {displayContent}
+      <span className={TYPEWRITER_CURSOR_CLASS} />
+    </p>
+  ) : (
+    <MarkdownMessage content={displayContent} />
+  );
+});
+StreamingAssistantContent.displayName = 'StreamingAssistantContent';
 
 // ---------------------------------------------------------------------------
 // Message type resolution
@@ -176,6 +221,7 @@ const MessageRow = memo(({ msg, onInteractionSubmit }) => {
 
   // ── User / Assistant text bubble ────────────────────────────────
   const isUser = msg.role === 'user';
+  const isStreamingAssistant = msg.role === 'assistant' && msg.status === 'streaming';
 
   return (
     <motion.div
@@ -202,7 +248,10 @@ const MessageRow = memo(({ msg, onInteractionSubmit }) => {
             {msg.content}
           </p>
         ) : (
-          <MarkdownMessage content={msg.content} />
+          <StreamingAssistantContent
+            content={msg.content}
+            isStreaming={isStreamingAssistant}
+          />
         )}
       </div>
     </motion.div>
@@ -232,17 +281,77 @@ export function ChatMain({ className, onInteractionSubmit, displayMessages }) {
   const endRef = useRef(null);
   const scrollContainerRef = useRef(null);
   const topSentinelRef = useRef(null);
+  const contentRef = useRef(null);
 
   /** @type {import('react').MutableRefObject<{scrollHeight:number,scrollTop:number}|null>} */
   const pendingAnchorRef = useRef(null);
+  const shouldStickToBottomRef = useRef(true);
+  const scrollRafRef = useRef(null);
 
   const lastMessage = messages[messages.length - 1];
   const lastMessageId = lastMessage?.id;
 
-  // ── Scroll to bottom only when the LAST message changes ─────────
+  const updateStickiness = useCallback(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    const distanceFromBottom = container.scrollHeight
+      - container.scrollTop
+      - container.clientHeight;
+    shouldStickToBottomRef.current = distanceFromBottom <= AUTO_SCROLL_THRESHOLD;
+  }, []);
+
+  const scheduleScrollToBottom = useCallback(() => {
+    if (scrollRafRef.current !== null) return;
+
+    scrollRafRef.current = requestAnimationFrame(() => {
+      scrollRafRef.current = null;
+
+      const container = scrollContainerRef.current;
+      if (!container || !shouldStickToBottomRef.current) return;
+
+      container.scrollTop = container.scrollHeight;
+    });
+  }, []);
+
+  // ── Keep track of whether the user is still pinned near the bottom ──
   useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: 'auto' });
-  }, [lastMessageId, isTyping, lastMessage?.content]);
+    const container = scrollContainerRef.current;
+    if (!container) return undefined;
+
+    updateStickiness();
+
+    const handleScroll = () => {
+      updateStickiness();
+    };
+
+    container.addEventListener('scroll', handleScroll, { passive: true });
+    return () => container.removeEventListener('scroll', handleScroll);
+  }, [updateStickiness]);
+
+  useEffect(() => () => {
+    if (scrollRafRef.current !== null) {
+      cancelAnimationFrame(scrollRafRef.current);
+    }
+  }, []);
+
+  // ── Follow height growth from streaming text / markdown reflow ──
+  useEffect(() => {
+    const contentEl = contentRef.current;
+    if (!contentEl || typeof ResizeObserver === 'undefined') return undefined;
+
+    const observer = new ResizeObserver(() => {
+      scheduleScrollToBottom();
+    });
+
+    observer.observe(contentEl);
+    return () => observer.disconnect();
+  }, [scheduleScrollToBottom]);
+
+  // ── Scroll on message append / streaming updates only when pinned ──
+  useEffect(() => {
+    scheduleScrollToBottom();
+  }, [lastMessageId, isTyping, lastMessage?.content, scheduleScrollToBottom]);
 
   // ── Scroll anchoring after prepend ──────────────────────────────
   useLayoutEffect(() => {
@@ -325,7 +434,7 @@ export function ChatMain({ className, onInteractionSubmit, displayMessages }) {
       className={cn('flex flex-1 flex-col overflow-y-auto', className)}
       style={{ overflowAnchor: 'none' }}
     >
-      <div className="mx-auto w-full max-w-3xl py-6">
+      <div ref={contentRef} className="mx-auto w-full max-w-3xl py-6">
         {/* ── Top sentinel / loading indicator ───────────────────── */}
         {hasMore && (
           <div ref={topSentinelRef} className="flex justify-center py-3">
