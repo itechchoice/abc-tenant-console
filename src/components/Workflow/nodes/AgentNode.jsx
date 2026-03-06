@@ -1,4 +1,4 @@
-import { memo } from 'react';
+import { memo, useState, useEffect } from 'react';
 import { Handle, Position } from '@xyflow/react';
 import {
   Brain, Wrench, GitBranch, Loader2, CheckCircle2, AlertTriangle,
@@ -13,7 +13,7 @@ import { cn } from '@/lib/utils';
  * Shape of the `data` object passed to this custom node by React Flow.
  *
  * @typedef {'llm' | 'tool' | 'condition'} AgentNodeType
- * @typedef {'idle' | 'running' | 'success' | 'error'} AgentNodeStatus
+ * @typedef {'idle' | 'running' | 'success' | 'error' | 'completed'} AgentNodeStatus
  *
  * @typedef {object} AgentNodeData
  * @property {string}          [label='Unnamed Node']
@@ -33,14 +33,16 @@ const TYPE_CONFIG = {
 
 const STATUS_RING = {
   idle: '',
-  running: 'ring-2 ring-blue-400/50 animate-pulse',
+  running: 'ring-2 ring-blue-500/60 shadow-[0_0_16px_rgba(59,130,246,0.45)]',
+  completed: 'ring-2 ring-emerald-500/60 shadow-[0_0_12px_rgba(16,185,129,0.35)]',
   success: 'ring-2 ring-emerald-400/60',
   error: 'ring-2 ring-red-400/60',
 };
 
 const STATUS_BORDER = {
   idle: 'border-zinc-200 dark:border-zinc-700',
-  running: 'border-blue-300 dark:border-blue-600',
+  running: 'border-blue-400 dark:border-blue-500',
+  completed: 'border-emerald-400 dark:border-emerald-500',
   success: 'border-emerald-300 dark:border-emerald-600',
   error: 'border-red-300 dark:border-red-600',
 };
@@ -54,7 +56,7 @@ const STATUS_BORDER = {
  *
  * Renders a compact card whose border colour, ring glow, and icon adapt
  * to the node's `type` (llm / tool / condition) and real-time execution
- * `status` (idle / running / success / error).
+ * `status` (idle / running / success / completed / error).
  *
  * **Registration example:**
  * ```js
@@ -75,6 +77,24 @@ function AgentNodeInner({ data }) {
   const typeConf = TYPE_CONFIG[type] || TYPE_CONFIG.llm;
   const TypeIcon = typeConf.icon;
 
+  const isRunning = status === 'running';
+  const isCompleted = status === 'completed';
+  const isSuccess = status === 'success';
+
+  const [showCompletedGlow, setShowCompletedGlow] = useState(false);
+
+  useEffect(() => {
+    if (isCompleted) {
+      setShowCompletedGlow(true);
+      const timer = setTimeout(() => setShowCompletedGlow(false), 2000);
+      return () => clearTimeout(timer);
+    }
+    setShowCompletedGlow(false);
+    return undefined;
+  }, [isCompleted]);
+
+  const resolvedStatus = showCompletedGlow ? 'completed' : (isCompleted ? 'idle' : status);
+
   return (
     <>
       {/* ── Input handle (top) ─────────────────────────────────────── */}
@@ -87,36 +107,50 @@ function AgentNodeInner({ data }) {
       {/* ── Card body ──────────────────────────────────────────────── */}
       <div
         className={cn(
-          'flex min-w-[160px] items-center gap-2.5 rounded-xl border',
-          'bg-card px-3.5 py-2.5 shadow-sm transition-shadow',
-          STATUS_BORDER[status],
-          STATUS_RING[status],
+          'relative flex min-w-[160px] items-center gap-2.5 rounded-xl border',
+          'bg-card px-3.5 py-2.5 transition-all duration-300',
+          STATUS_BORDER[resolvedStatus],
+          STATUS_RING[resolvedStatus],
+          isRunning && 'animate-pulse',
         )}
       >
         {/* Type icon */}
         <div
           className={cn(
             'flex h-8 w-8 shrink-0 items-center justify-center',
-            'rounded-lg bg-muted',
+            'rounded-lg transition-colors duration-300',
+            isRunning ? 'bg-blue-500/10' : 'bg-muted',
           )}
         >
-          {status === 'running' ? (
+          {isRunning ? (
             <Loader2
               size={16}
               className="animate-spin text-blue-500"
             />
+          ) : (isCompleted || isSuccess) ? (
+            <CheckCircle2 size={16} className="text-emerald-500" />
           ) : (
             <TypeIcon size={16} className={typeConf.accent} />
           )}
         </div>
 
         {/* Label */}
-        <span className="truncate text-xs font-medium text-foreground">
+        <span className={cn(
+          'truncate text-xs font-medium transition-colors duration-300',
+          isRunning ? 'text-blue-600 dark:text-blue-400' : 'text-foreground',
+        )}
+        >
           {label}
         </span>
 
-        {/* Status badge (top-right corner for terminal states) */}
-        {status === 'success' && (
+        {/* Trailing status indicator */}
+        {isRunning && (
+          <Loader2
+            size={12}
+            className="ml-auto shrink-0 animate-spin text-blue-400"
+          />
+        )}
+        {(isSuccess || showCompletedGlow) && (
           <CheckCircle2
             size={14}
             className="ml-auto shrink-0 text-emerald-500"

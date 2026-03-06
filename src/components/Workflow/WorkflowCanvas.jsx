@@ -107,6 +107,8 @@ function FlowContent({ initialNodes, initialEdges, fitViewTrigger = 0 }) {
 
   const { fitView } = useReactFlow();
   const activeNodeId = useChatStore((s) => s.activeNodeId);
+  const activeStepName = useChatStore((s) => s.activeStepName);
+  const workflowStatus = useChatStore((s) => s.workflowStatus);
   const prevActiveRef = useRef(null);
 
   // ── fitView on animation-complete signal from parent ────────────
@@ -115,7 +117,7 @@ function FlowContent({ initialNodes, initialEdges, fitViewTrigger = 0 }) {
     requestAnimationFrame(() => { fitView(FIT_VIEW_OPTS); });
   }, [fitViewTrigger, fitView]);
 
-  // ── Reactive node highlighting ──────────────────────────────────
+  // ── Reactive node highlighting (legacy activeNodeId) ────────────
   useEffect(() => {
     const prevId = prevActiveRef.current;
 
@@ -139,6 +141,47 @@ function FlowContent({ initialNodes, initialEdges, fitViewTrigger = 0 }) {
 
     prevActiveRef.current = activeNodeId;
   }, [activeNodeId, setNodes]);
+
+  // ── SSE engine step → node status mapping ─────────────────────
+  useEffect(() => {
+    if (workflowStatus === 'running' && activeStepName) {
+      setNodes((nds) => nds.map((node) => {
+        const nameMatch = activeStepName
+          && (node.id === activeStepName
+            || node.data?.label === activeStepName
+            || node.data?.type?.toUpperCase() === activeStepName.toUpperCase());
+
+        if (nameMatch) {
+          return node.data.status === 'running'
+            ? node
+            : { ...node, data: { ...node.data, status: 'running' } };
+        }
+
+        return node.data.status === 'idle'
+          ? node
+          : { ...node, data: { ...node.data, status: 'idle' } };
+      }));
+    }
+
+    if (workflowStatus === 'completed') {
+      setNodes((nds) => nds.map((node) => (
+        node.data.status === 'completed'
+          ? node
+          : { ...node, data: { ...node.data, status: 'completed' } }
+      )));
+
+      const timer = setTimeout(() => {
+        setNodes((nds) => nds.map((node) => (
+          node.data.status === 'idle'
+            ? node
+            : { ...node, data: { ...node.data, status: 'idle' } }
+        )));
+      }, 2000);
+      return () => clearTimeout(timer);
+    }
+
+    return undefined;
+  }, [activeStepName, workflowStatus, setNodes]);
 
   // ── Reactive edge animation ─────────────────────────────────────
   useEffect(() => {

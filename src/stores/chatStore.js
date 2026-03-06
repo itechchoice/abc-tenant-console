@@ -27,6 +27,12 @@ import { create } from 'zustand';
  *   when no workflow context is active.
  * @property {string | null} activeNodeId
  *   ID of the workflow node currently highlighted / executing, or `null`.
+ * @property {string | null} activeTaskId
+ *   ID of the engine task currently being executed, or `null`.
+ * @property {string | null} activeStepName
+ *   Name/type of the step currently executing (e.g. `"DIRECT_CHAT"`), or `null`.
+ * @property {'idle' | 'running' | 'completed'} workflowStatus
+ *   High-level lifecycle state of the current engine execution.
  * @property {AssignedProvider | null} selectedModel
  *   Currently selected LLM provider for the chat input.  Persists across
  *   `clearChat` calls as a workspace-level preference.
@@ -59,6 +65,8 @@ import { create } from 'zustand';
  * @property {(workflowId: string | null, nodeId: string | null) => void} setWorkflowInfo
  *   Atomically update the active workflow ID **and** the highlighted node
  *   ID in a single render batch.
+ * @property {(patch: { activeTaskId?: string|null, activeStepName?: string|null, workflowStatus?: 'idle'|'running'|'completed' }) => void} setWorkflowState
+ *   Batch-update the engine execution tracking fields.
  * @property {(model: AssignedProvider | null) => void} setSelectedModel
  *   Set or clear the active LLM provider for the chat input.
  * @property {(mode: 'auto' | 'agent' | 'model') => void} setChatMode
@@ -88,6 +96,9 @@ const INITIAL_STATE = {
   currentSessionId: null,
   currentWorkflowId: null,
   activeNodeId: null,
+  activeTaskId: null,
+  activeStepName: null,
+  workflowStatus: 'idle',
 };
 
 // ---------------------------------------------------------------------------
@@ -133,6 +144,12 @@ export const useChatStore = create((set) => ({
     currentWorkflowId: workflowId,
     activeNodeId: nodeId,
   }),
+
+  setWorkflowState: (patch) => set((state) => ({
+    activeTaskId: patch.activeTaskId !== undefined ? patch.activeTaskId : state.activeTaskId,
+    activeStepName: patch.activeStepName !== undefined ? patch.activeStepName : state.activeStepName,
+    workflowStatus: patch.workflowStatus !== undefined ? patch.workflowStatus : state.workflowStatus,
+  })),
 
   setSelectedModel: (model) => set({ selectedModel: model }),
 

@@ -81,7 +81,7 @@ export function useAgentChat(options = {}) {
       const { token, userInfo } = useAuthStore.getState();
       const {
         addMessage, updateMessage, setTyping, setWorkflowInfo,
-        setCurrentSessionId, currentSessionId,
+        setWorkflowState, setCurrentSessionId, currentSessionId,
         chatMode, selectedAgentId, selectedModel,
       } = useChatStore.getState();
 
@@ -203,6 +203,35 @@ export function useAgentChat(options = {}) {
                 break;
               }
 
+              // ── v2: Task lifecycle — creation ──────────────────────
+              case 'TASK_CREATED': {
+                const taskId = payload.taskId ?? payload.id ?? null;
+                setWorkflowState({
+                  activeTaskId: taskId,
+                  workflowStatus: 'running',
+                  activeStepName: 'init',
+                });
+                break;
+              }
+
+              // ── v2: Task lifecycle — step execution ────────────────
+              case 'STEP_START': {
+                let stepName = null;
+                const raw = payload.payload;
+                if (typeof raw === 'string') {
+                  try {
+                    const parsed = JSON.parse(raw);
+                    stepName = parsed.type || parsed.stepName || null;
+                  } catch {
+                    console.warn('[useAgentChat] Failed to parse STEP_START payload:', raw);
+                  }
+                } else {
+                  stepName = raw?.type ?? payload.type ?? null;
+                }
+                setWorkflowState({ activeStepName: stepName, workflowStatus: 'running' });
+                break;
+              }
+
               // ── v2: Stream completed ───────────────────────────────
               case 'TASK_COMPLETED':
               case 'TASK_COMPLETE':
@@ -213,6 +242,7 @@ export function useAgentChat(options = {}) {
                 }
                 updateMessage(assistantMessageId, { status: 'completed' });
                 setTyping(false);
+                setWorkflowState({ workflowStatus: 'completed', activeStepName: null });
                 break;
               }
 
