@@ -402,7 +402,7 @@ export function useAgentChat(options = {}) {
         initialContent,
       });
 
-      const baseUrl = import.meta.env.VITE_API_BASE_URL || '/api';
+      const baseUrl = import.meta.env.VITE_API_BASE_URL || '/tenant-console-api';
 
       try {
         await fetchEventSource(`${baseUrl}${TASKS_ENDPOINT}/${taskId}/events`, {
@@ -470,7 +470,7 @@ export function useAgentChat(options = {}) {
         status: 'pending',
       });
 
-      const baseUrl = import.meta.env.VITE_API_BASE_URL || '/api';
+      const baseUrl = import.meta.env.VITE_API_BASE_URL || '/tenant-console-api';
       const sessionId = metadata.sessionId || currentSessionId || undefined;
       const headers = getSSEHeaders();
 

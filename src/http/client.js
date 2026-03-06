@@ -1,9 +1,11 @@
 import axios from 'axios';
 import { useAuthStore } from '@/stores/authStore';
 
+const loginPath = new URL('login', window.location.origin + import.meta.env.BASE_URL).pathname;
+
 // 创建全局 Axios 单例
 export const apiClient = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || '/api',
+  baseURL: import.meta.env.VITE_API_BASE_URL || '/tenant-console-api',
   timeout: 10000,
 });
 
@@ -29,7 +31,7 @@ apiClient.interceptors.response.use(
     if (error.response?.status === 401) {
       // 强制清除本地状态并踢回登录页
       useAuthStore.getState().logout();
-      window.location.href = '/login';
+      window.location.href = loginPath;
     }
 
     // 你也可以在这里加入全局的 Toast 错误提示逻辑

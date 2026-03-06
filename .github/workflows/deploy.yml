@@ -39,7 +39,7 @@ jobs:
       - name: Build project
         env:
           VITE_APP_BASE_PATH: ${{ vars.VITE_APP_BASE_PATH != '' && vars.VITE_APP_BASE_PATH || '/tenant-console/' }}
-          VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL != '' && vars.VITE_API_BASE_URL || '/api' }}
+          VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL != '' && vars.VITE_API_BASE_URL || '/tenant-console-api' }}
         run: pnpm build
 
       - name: Validate deployment secrets
