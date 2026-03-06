@@ -78,7 +78,9 @@ export function useSessionDetail(sessionId) {
 
   useEffect(() => {
     if (!query.data?.messages) return;
-    useChatStore.getState().setMessages(query.data.messages);
+    const store = useChatStore.getState();
+    store.setMessages(query.data.messages);
+    store.setHasMore(query.data.hasMore ?? false);
   }, [query.data]);
 
   return query;

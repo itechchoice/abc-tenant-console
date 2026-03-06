@@ -33,6 +33,12 @@ import { create } from 'zustand';
  *   Name/type of the step currently executing (e.g. `"DIRECT_CHAT"`), or `null`.
  * @property {'idle' | 'running' | 'completed'} workflowStatus
  *   High-level lifecycle state of the current engine execution.
+ * @property {boolean} hasMore
+ *   `true` when the server indicates earlier messages exist beyond the current
+ *   cursor.  Drives the "load older messages" infinite scroll in ChatMain.
+ * @property {boolean} isLoadingMore
+ *   Guard flag — `true` while a "load older" request is in flight, preventing
+ *   duplicate requests from scroll inertia.
  * @property {boolean} isHistoricalTrack
  *   `true` when the active conversation was loaded from history (sidebar click).
  *   Controls whether `sendMessage` dispatches via `POST /tasks` + task-events
@@ -71,6 +77,12 @@ import { create } from 'zustand';
  *   ID in a single render batch.
  * @property {(patch: { activeTaskId?: string|null, activeStepName?: string|null, workflowStatus?: 'idle'|'running'|'completed' }) => void} setWorkflowState
  *   Batch-update the engine execution tracking fields.
+ * @property {(flag: boolean) => void} setHasMore
+ *   Update the cursor-pagination "has more" flag.
+ * @property {(flag: boolean) => void} setIsLoadingMore
+ *   Toggle the "loading older messages" guard.
+ * @property {(olderMessages: Message[]) => void} prependMessages
+ *   Prepend an array of older messages to the **head** of the message list.
  * @property {(flag: boolean) => void} setHistoricalTrack
  *   Switch between historical track (`true`) and quick-new-chat track (`false`).
  * @property {(model: AssignedProvider | null) => void} setSelectedModel
@@ -105,6 +117,8 @@ const INITIAL_STATE = {
   activeTaskId: null,
   activeStepName: null,
   workflowStatus: 'idle',
+  hasMore: false,
+  isLoadingMore: false,
   isHistoricalTrack: false,
 };
 
@@ -156,6 +170,14 @@ export const useChatStore = create((set) => ({
     activeTaskId: patch.activeTaskId !== undefined ? patch.activeTaskId : state.activeTaskId,
     activeStepName: patch.activeStepName !== undefined ? patch.activeStepName : state.activeStepName,
     workflowStatus: patch.workflowStatus !== undefined ? patch.workflowStatus : state.workflowStatus,
+  })),
+
+  setHasMore: (flag) => set({ hasMore: flag }),
+
+  setIsLoadingMore: (flag) => set({ isLoadingMore: flag }),
+
+  prependMessages: (olderMessages) => set((state) => ({
+    messages: [...olderMessages, ...state.messages],
   })),
 
   setHistoricalTrack: (flag) => set({ isHistoricalTrack: flag }),

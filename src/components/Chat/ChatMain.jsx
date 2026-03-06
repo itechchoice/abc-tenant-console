@@ -1,9 +1,10 @@
 import {
-  useRef, useEffect, useCallback, memo,
+  useRef, useEffect, useLayoutEffect, useCallback, memo,
 } from 'react';
 import { motion } from 'framer-motion';
-import { Bot, User } from 'lucide-react';
+import { Bot, User, Loader2 } from 'lucide-react';
 import { useChatStore } from '@/stores/chatStore';
+import { apiClient } from '@/http/client';
 import { MarkdownMessage } from '@/components/GenerativeUI/MarkdownMessage';
 import { ToolCallCard } from '@/components/GenerativeUI/ToolCallCard';
 import { InteractionForm } from '@/components/GenerativeUI/InteractionForm';
@@ -211,20 +212,102 @@ MessageRow.displayName = 'MessageRow';
 
 /**
  * Primary chat viewport – renders the full message list with polymorphic
- * dispatching (text bubbles, tool call cards, interaction forms) and
- * automatic scroll-to-bottom behaviour.
+ * dispatching (text bubbles, tool call cards, interaction forms),
+ * automatic scroll-to-bottom for new messages, and infinite scroll-up
+ * with cursor-based pagination for loading older history.
  *
  * @param {ChatMainProps} props
  */
 export function ChatMain({ className, onInteractionSubmit }) {
   const messages = useChatStore((s) => s.messages);
   const isTyping = useChatStore((s) => s.isTyping);
-  const endRef = useRef(null);
-  const lastMessage = messages[messages.length - 1];
+  const hasMore = useChatStore((s) => s.hasMore);
+  const isLoadingMore = useChatStore((s) => s.isLoadingMore);
 
+  const endRef = useRef(null);
+  const scrollContainerRef = useRef(null);
+  const topSentinelRef = useRef(null);
+
+  /** @type {import('react').MutableRefObject<{scrollHeight:number,scrollTop:number}|null>} */
+  const pendingAnchorRef = useRef(null);
+
+  const lastMessage = messages[messages.length - 1];
+  const lastMessageId = lastMessage?.id;
+
+  // ── Scroll to bottom only when the LAST message changes ─────────
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'auto' });
-  }, [messages.length, isTyping, lastMessage?.content]);
+  }, [lastMessageId, isTyping, lastMessage?.content]);
+
+  // ── Scroll anchoring after prepend ──────────────────────────────
+  useLayoutEffect(() => {
+    const anchor = pendingAnchorRef.current;
+    if (!anchor) return;
+
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    const newScrollHeight = container.scrollHeight;
+    container.scrollTop = anchor.scrollTop + (newScrollHeight - anchor.scrollHeight);
+    pendingAnchorRef.current = null;
+  }, [messages]);
+
+  // ── Load older messages (cursor pagination) ─────────────────────
+  const loadOlderMessages = useCallback(async () => {
+    const {
+      messages: msgs, currentSessionId: sessId,
+      setIsLoadingMore, setHasMore, prependMessages,
+    } = useChatStore.getState();
+
+    if (!sessId || !msgs.length) return;
+
+    setIsLoadingMore(true);
+
+    try {
+      const firstMsgId = msgs[0].id;
+      const res = await apiClient.get(`/sessions/${sessId}`, {
+        params: { before: firstMsgId },
+      });
+      const data = res?.data ?? res;
+      const olderMessages = data?.messages ?? [];
+
+      setHasMore(data?.hasMore ?? false);
+
+      if (olderMessages.length > 0) {
+        const container = scrollContainerRef.current;
+        if (container) {
+          pendingAnchorRef.current = {
+            scrollHeight: container.scrollHeight,
+            scrollTop: container.scrollTop,
+          };
+        }
+        prependMessages(olderMessages);
+      }
+    } catch (err) {
+      console.error('[ChatMain] Failed to load older messages:', err);
+    } finally {
+      setIsLoadingMore(false);
+    }
+  }, []);
+
+  // ── IntersectionObserver — triggers load when sentinel is visible ─
+  useEffect(() => {
+    const sentinel = topSentinelRef.current;
+    const container = scrollContainerRef.current;
+    if (!sentinel || !container || !hasMore) return undefined;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry.isIntersecting) return;
+        const { hasMore: canLoad, isLoadingMore: loading } = useChatStore.getState();
+        if (canLoad && !loading) loadOlderMessages();
+      },
+      { root: container, threshold: 0 },
+    );
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [hasMore, loadOlderMessages]);
 
   const handleInteractionSubmit = useCallback(
     (payload) => { onInteractionSubmit?.(payload); },
@@ -232,8 +315,24 @@ export function ChatMain({ className, onInteractionSubmit }) {
   );
 
   return (
-    <div className={cn('flex flex-1 flex-col overflow-y-auto', className)}>
+    <div
+      ref={scrollContainerRef}
+      className={cn('flex flex-1 flex-col overflow-y-auto', className)}
+      style={{ overflowAnchor: 'none' }}
+    >
       <div className="mx-auto w-full max-w-3xl py-6">
+        {/* ── Top sentinel / loading indicator ───────────────────── */}
+        {hasMore && (
+          <div ref={topSentinelRef} className="flex justify-center py-3">
+            {isLoadingMore && (
+              <div className="flex items-center gap-2 text-muted-foreground/50">
+                <Loader2 size={14} className="animate-spin" />
+                <span className="text-xs">Loading older messages...</span>
+              </div>
+            )}
+          </div>
+        )}
+
         {messages.map((msg) => (
           <MessageRow
             key={msg.id}
