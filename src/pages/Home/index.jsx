@@ -106,10 +106,20 @@ function Home() {
   const [fitViewTrigger, setFitViewTrigger] = useState(0);
 
   const draggingRef = useRef(false);
+  const hadActiveExecutionRef = useRef(false);
 
   const toggleCanvas = useCallback(() => setCanvasVisible((v) => !v), []);
 
-  const showCanvas = canvasVisible || !!currentWorkflowId || workflowPhase !== 'idle';
+  const hasActiveExecution = !!currentWorkflowId || workflowPhase !== 'idle';
+  const showCanvas = canvasVisible;
+
+  useEffect(() => {
+    if (hasActiveExecution && !hadActiveExecutionRef.current) {
+      setCanvasVisible(true);
+    }
+
+    hadActiveExecutionRef.current = hasActiveExecution;
+  }, [hasActiveExecution]);
 
   // ── Keep MAX_WIDTH in sync on window resize ──────────────────────
   useEffect(() => {
