@@ -21,10 +21,6 @@ import { cn } from '@/lib/utils';
 /**
  * @typedef {object} ChatMainProps
  * @property {string}  [className] – Additional class names for the scroll container.
- * @property {Message[]} [displayMessages]
- *   Optional filtered message list for rendering.  When provided, only these
- *   messages are rendered in the viewport (e.g. settled messages with pending
- *   ones moved to the dock).  Falls back to the full store list when omitted.
  * @property {(payload: import('@/components/GenerativeUI/InteractionForm')
  *   .InteractionSubmitPayload) => void} [onInteractionSubmit]
  *   Callback forwarded to any `InteractionForm` rendered within the list.
@@ -271,9 +267,8 @@ MessageRow.displayName = 'MessageRow';
  *
  * @param {ChatMainProps} props
  */
-export function ChatMain({ className, onInteractionSubmit, displayMessages }) {
-  const storeMessages = useChatStore((s) => s.messages);
-  const messages = displayMessages ?? storeMessages;
+export function ChatMain({ className, onInteractionSubmit }) {
+  const messages = useChatStore((s) => s.messages);
   const isTyping = useChatStore((s) => s.isTyping);
   const hasMore = useChatStore((s) => s.hasMore);
   const isLoadingMore = useChatStore((s) => s.isLoadingMore);
@@ -448,17 +443,11 @@ export function ChatMain({ className, onInteractionSubmit, displayMessages }) {
         )}
 
         {messages.map((msg) => (
-          msg.role === 'assistant' ? (
-            <motion.div key={msg.id} layoutId={`msg-${msg.id}`}>
-              <MessageRow msg={msg} onInteractionSubmit={handleInteractionSubmit} />
-            </motion.div>
-          ) : (
-            <MessageRow
-              key={msg.id}
-              msg={msg}
-              onInteractionSubmit={handleInteractionSubmit}
-            />
-          )
+          <MessageRow
+            key={msg.id}
+            msg={msg}
+            onInteractionSubmit={handleInteractionSubmit}
+          />
         ))}
 
         {isTyping && <TypingIndicator />}
