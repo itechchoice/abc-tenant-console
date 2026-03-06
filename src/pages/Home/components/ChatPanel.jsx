@@ -391,7 +391,7 @@ export default function ChatPanel() {
   const showWelcome = !currentSessionId && !hasMessages && !isLoadingDetail;
 
   return (
-    <div className="flex flex-1 flex-col min-w-0 bg-background">
+    <div className="flex flex-1 flex-col min-w-0 min-h-0 bg-background">
       {/* ── Chat header ────────────────────────────────────────────── */}
       {(currentSessionId || hasMessages) && (
         <div className="flex h-12 shrink-0 items-center border-b border-border/40 px-6">
@@ -407,7 +407,7 @@ export default function ChatPanel() {
       ) : showWelcome ? (
         <WelcomeState onSuggestion={handleSend} />
       ) : (
-        <ChatMain className="flex-1" />
+        <ChatMain className="flex-1 min-h-0" />
       )}
 
       {/* ── Input area ─────────────────────────────────────────────── */}

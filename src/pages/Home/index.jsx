@@ -157,7 +157,7 @@ function Home() {
       <ConversationSidebar />
 
       {/* ── Center: Chat panel ─────────────────────────────────────── */}
-      <div className="relative flex flex-1 flex-col min-w-0 bg-background">
+      <div className="relative flex flex-1 flex-col min-w-0 min-h-0 bg-background">
         <ChatPanel />
 
         <button

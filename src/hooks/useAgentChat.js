@@ -176,17 +176,36 @@ export function useAgentChat(options = {}) {
               }
 
               // ── v2: Streaming token delta ──────────────────────────
-              case 'TEXT_CHUNK': {
-                const text = payload.payload ?? payload.content ?? '';
-                streamedContent += text;
-                updateMessage(assistantMessageId, {
-                  content: streamedContent,
-                  status: 'streaming',
-                });
+              case 'TOKEN_STREAM':
+              case 'TEXT_CHUNK':
+              case 'LLM_CHUNK': {
+                let text = '';
+                const raw = payload.payload;
+
+                if (typeof raw === 'string' && raw.startsWith('{')) {
+                  try {
+                    const inner = JSON.parse(raw);
+                    text = inner.content || '';
+                  } catch {
+                    console.warn('[useAgentChat] Failed to parse inner payload:', raw);
+                  }
+                } else {
+                  text = raw?.content ?? raw ?? payload.content ?? '';
+                }
+
+                if (text) {
+                  streamedContent += text;
+                  updateMessage(assistantMessageId, {
+                    content: streamedContent,
+                    status: 'streaming',
+                  });
+                }
                 break;
               }
 
               // ── v2: Stream completed ───────────────────────────────
+              case 'TASK_COMPLETED':
+              case 'TASK_COMPLETE':
               case 'COMPLETED': {
                 if (payload.payload) {
                   streamedContent = payload.payload;
