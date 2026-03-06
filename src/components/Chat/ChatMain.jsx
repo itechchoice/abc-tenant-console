@@ -1,5 +1,5 @@
 import {
-  useRef, useEffect, useLayoutEffect, useCallback, memo, useState,
+  useRef, useEffect, useLayoutEffect, useCallback, memo,
 } from 'react';
 import { motion } from 'framer-motion';
 import { Bot, User, Loader2 } from 'lucide-react';
@@ -48,7 +48,6 @@ const dotTransition = {
 };
 
 const AUTO_SCROLL_THRESHOLD = 96;
-const TYPEWRITER_CURSOR_CLASS = 'ml-0.5 inline-block h-[1.1em] w-px animate-pulse rounded-full bg-current align-[-0.18em] opacity-60';
 
 const TypingIndicator = memo(() => (
   <div className="flex items-start gap-3 px-4 py-2">
@@ -90,48 +89,6 @@ function Avatar({ author }) {
     </div>
   );
 }
-
-// ---------------------------------------------------------------------------
-// StreamingAssistantContent
-// ---------------------------------------------------------------------------
-
-/**
- * @param {{ content: string, isStreaming: boolean }} props
- */
-const StreamingAssistantContent = memo(({ content, isStreaming }) => {
-  const [visibleCount, setVisibleCount] = useState(content.length);
-
-  useEffect(() => {
-    if (!isStreaming) {
-      setVisibleCount(content.length);
-      return undefined;
-    }
-
-    if (visibleCount >= content.length) return undefined;
-
-    const frameId = requestAnimationFrame(() => {
-      const remaining = content.length - visibleCount;
-      const step = remaining > 120 ? 6 : remaining > 48 ? 3 : 1;
-      setVisibleCount((prev) => Math.min(content.length, prev + step));
-    });
-
-    return () => cancelAnimationFrame(frameId);
-  }, [content, isStreaming, visibleCount]);
-
-  const displayContent = isStreaming ? content.slice(0, visibleCount) : content;
-
-  if (!displayContent && !isStreaming) return null;
-
-  return isStreaming ? (
-    <p className="whitespace-pre-wrap text-sm leading-relaxed">
-      {displayContent}
-      <span className={TYPEWRITER_CURSOR_CLASS} />
-    </p>
-  ) : (
-    <MarkdownMessage content={displayContent} />
-  );
-});
-StreamingAssistantContent.displayName = 'StreamingAssistantContent';
 
 // ---------------------------------------------------------------------------
 // Message type resolution
@@ -217,7 +174,6 @@ const MessageRow = memo(({ msg, onInteractionSubmit }) => {
 
   // ── User / Assistant text bubble ────────────────────────────────
   const isUser = msg.role === 'user';
-  const isStreamingAssistant = msg.role === 'assistant' && msg.status === 'streaming';
 
   return (
     <motion.div
@@ -244,10 +200,7 @@ const MessageRow = memo(({ msg, onInteractionSubmit }) => {
             {msg.content}
           </p>
         ) : (
-          <StreamingAssistantContent
-            content={msg.content}
-            isStreaming={isStreamingAssistant}
-          />
+          <MarkdownMessage content={msg.content} />
         )}
       </div>
     </motion.div>
