@@ -20,6 +20,8 @@ import { cn } from '@/lib/utils';
  * @property {ToolCallStatus}   status   – Current execution lifecycle state.
  * @property {string | object}  [result] – Payload returned after execution.
  * @property {string}  [className] – Additional class names for the outer card.
+ * @property {boolean} [isActive]
+ * @property {() => void} [onInspect]
  */
 
 // ---------------------------------------------------------------------------
@@ -126,6 +128,8 @@ export function ToolCallCard({
   status = 'pending',
   result,
   className,
+  isActive = false,
+  onInspect,
 }) {
   const [expanded, setExpanded] = useState(false);
 
@@ -145,6 +149,7 @@ export function ToolCallCard({
         'my-3 overflow-hidden rounded-lg border',
         config.ringClass,
         config.bgClass,
+        isActive && 'ring-2 ring-primary/25 shadow-[0_18px_40px_-24px_rgba(15,23,42,0.4)]',
         className,
       )}
     >
@@ -161,27 +166,45 @@ export function ToolCallCard({
           </p>
         </div>
 
-        {hasPayload && (
-          <motion.button
-            type="button"
-            onClick={() => setExpanded((prev) => !prev)}
-            whileTap={{ scale: 0.92 }}
-            className={cn(
-              'inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs',
-              'text-muted-foreground transition-colors',
-              'hover:bg-foreground/5 hover:text-foreground',
-            )}
-          >
-            {expanded ? 'Hide' : 'Details'}
-            <motion.span
-              animate={{ rotate: expanded ? 180 : 0 }}
-              transition={{ type: 'spring', stiffness: 300, damping: 22 }}
-              className="inline-flex"
+        <div className="flex items-center gap-1.5">
+          {onInspect && (
+            <motion.button
+              type="button"
+              onClick={onInspect}
+              whileTap={{ scale: 0.92 }}
+              className={cn(
+                'inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs',
+                'text-muted-foreground transition-colors',
+                'hover:bg-foreground/5 hover:text-foreground',
+                isActive && 'bg-foreground/6 text-foreground',
+              )}
             >
-              <ChevronDown size={14} />
-            </motion.span>
-          </motion.button>
-        )}
+              {isActive ? 'Linked' : 'Locate'}
+            </motion.button>
+          )}
+
+          {hasPayload && (
+            <motion.button
+              type="button"
+              onClick={() => setExpanded((prev) => !prev)}
+              whileTap={{ scale: 0.92 }}
+              className={cn(
+                'inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs',
+                'text-muted-foreground transition-colors',
+                'hover:bg-foreground/5 hover:text-foreground',
+              )}
+            >
+              {expanded ? 'Hide' : 'Details'}
+              <motion.span
+                animate={{ rotate: expanded ? 180 : 0 }}
+                transition={{ type: 'spring', stiffness: 300, damping: 22 }}
+                className="inline-flex"
+              >
+                <ChevronDown size={14} />
+              </motion.span>
+            </motion.button>
+          )}
+        </div>
       </div>
 
       {/* ── Expandable payload section ────────────────────────────────── */}

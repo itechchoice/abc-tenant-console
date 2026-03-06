@@ -1,174 +1,195 @@
-import { memo, useState, useEffect } from 'react';
+import { memo } from 'react';
 import { Handle, Position } from '@xyflow/react';
 import {
-  Brain, Wrench, GitBranch, Loader2, CheckCircle2, AlertTriangle,
+  Bot,
+  GitBranch,
+  MessageSquareQuote,
+  ScanSearch,
+  Sparkles,
+  Wrench,
+  ArrowUpRight,
+  Loader2,
+  AlertTriangle,
+  CheckCircle2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-// ---------------------------------------------------------------------------
-// Data typedef
-// ---------------------------------------------------------------------------
-
-/**
- * Shape of the `data` object passed to this custom node by React Flow.
- *
- * @typedef {'llm' | 'tool' | 'condition'} AgentNodeType
- * @typedef {'idle' | 'running' | 'success' | 'error' | 'completed'} AgentNodeStatus
- *
- * @typedef {object} AgentNodeData
- * @property {string}          [label='Unnamed Node']
- * @property {AgentNodeType}   [type='llm']
- * @property {AgentNodeStatus} [status='idle']
- */
-
-// ---------------------------------------------------------------------------
-// Icon / colour configuration driven by `type` and `status`
-// ---------------------------------------------------------------------------
-
 const TYPE_CONFIG = {
-  llm: { icon: Brain, accent: 'text-violet-500' },
-  tool: { icon: Wrench, accent: 'text-amber-500' },
-  condition: { icon: GitBranch, accent: 'text-sky-500' },
+  analysis: {
+    icon: ScanSearch,
+    iconClass: 'text-sky-700',
+    badgeClass: 'bg-sky-50 text-sky-700 border-sky-200',
+  },
+  plan: {
+    icon: GitBranch,
+    iconClass: 'text-slate-700',
+    badgeClass: 'bg-slate-100 text-slate-700 border-slate-200',
+  },
+  tool: {
+    icon: Wrench,
+    iconClass: 'text-amber-700',
+    badgeClass: 'bg-amber-50 text-amber-700 border-amber-200',
+  },
+  decision: {
+    icon: Sparkles,
+    iconClass: 'text-violet-700',
+    badgeClass: 'bg-violet-50 text-violet-700 border-violet-200',
+  },
+  handoff: {
+    icon: MessageSquareQuote,
+    iconClass: 'text-amber-700',
+    badgeClass: 'bg-amber-50 text-amber-700 border-amber-200',
+  },
+  response: {
+    icon: ArrowUpRight,
+    iconClass: 'text-emerald-700',
+    badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  },
+  model: {
+    icon: Bot,
+    iconClass: 'text-slate-900',
+    badgeClass: 'bg-slate-100 text-slate-700 border-slate-200',
+  },
 };
 
-const STATUS_RING = {
-  idle: '',
-  running: 'ring-2 ring-blue-500/60 shadow-[0_0_16px_rgba(59,130,246,0.45)]',
-  completed: 'ring-2 ring-emerald-500/60 shadow-[0_0_12px_rgba(16,185,129,0.35)]',
-  success: 'ring-2 ring-emerald-400/60',
-  error: 'ring-2 ring-red-400/60',
+const STATUS_STYLES = {
+  idle: 'border-slate-200 bg-white/88 shadow-[0_14px_40px_-34px_rgba(15,23,42,0.25)]',
+  running: 'border-slate-950 bg-slate-950 text-white shadow-[0_24px_56px_-32px_rgba(15,23,42,0.7)]',
+  paused: 'border-amber-300 bg-amber-50 text-amber-950 shadow-[0_22px_48px_-34px_rgba(217,119,6,0.36)]',
+  completed: 'border-emerald-300 bg-emerald-50 text-emerald-950 shadow-[0_22px_48px_-34px_rgba(5,150,105,0.36)]',
+  success: 'border-slate-300 bg-white text-slate-900 shadow-[0_16px_40px_-30px_rgba(15,23,42,0.3)]',
+  error: 'border-red-300 bg-red-50 text-red-950 shadow-[0_22px_48px_-34px_rgba(220,38,38,0.32)]',
 };
 
-const STATUS_BORDER = {
-  idle: 'border-zinc-200 dark:border-zinc-700',
-  running: 'border-blue-400 dark:border-blue-500',
-  completed: 'border-emerald-400 dark:border-emerald-500',
-  success: 'border-emerald-300 dark:border-emerald-600',
-  error: 'border-red-300 dark:border-red-600',
-};
+function StatusIcon({ status, typeIcon: TypeIcon, typeIconClass }) {
+  if (status === 'running') {
+    return <Loader2 size={17} className="animate-spin text-white" />;
+  }
 
-// ---------------------------------------------------------------------------
-// AgentNode
-// ---------------------------------------------------------------------------
+  if (status === 'completed' || status === 'success') {
+    return <CheckCircle2 size={17} className="text-emerald-700" />;
+  }
+
+  if (status === 'error') {
+    return <AlertTriangle size={17} className="text-red-700" />;
+  }
+
+  return <TypeIcon size={17} className={typeIconClass} />;
+}
 
 /**
- * Custom React Flow node representing an AI agent pipeline step.
- *
- * Renders a compact card whose border colour, ring glow, and icon adapt
- * to the node's `type` (llm / tool / condition) and real-time execution
- * `status` (idle / running / success / completed / error).
- *
- * **Registration example:**
- * ```js
- * import { AgentNode } from '@/components/Workflow/nodes/AgentNode';
- * const nodeTypes = { agent: AgentNode };
- * <ReactFlow nodeTypes={nodeTypes} ... />
- * ```
- *
- * @param {{ data: AgentNodeData }} props
+ * @param {{ data?: {
+ *   label?: string,
+ *   subtitle?: string,
+ *   detail?: string,
+ *   type?: keyof typeof TYPE_CONFIG,
+ *   status?: keyof typeof STATUS_STYLES,
+ *   isSelected?: boolean,
+ *   isCurrent?: boolean,
+ *   activityCount?: number,
+ * } }} props
  */
 function AgentNodeInner({ data }) {
   const {
-    label = 'Unnamed Node',
-    type = 'llm',
+    label = 'Untitled',
+    subtitle = 'Execution stage',
+    detail = '',
+    type = 'analysis',
     status = 'idle',
+    isSelected = false,
+    isCurrent = false,
+    activityCount = 0,
   } = data ?? {};
 
-  const typeConf = TYPE_CONFIG[type] || TYPE_CONFIG.llm;
-  const TypeIcon = typeConf.icon;
-
-  const isRunning = status === 'running';
-  const isCompleted = status === 'completed';
-  const isSuccess = status === 'success';
-
-  const [showCompletedGlow, setShowCompletedGlow] = useState(false);
-
-  useEffect(() => {
-    if (isCompleted) {
-      setShowCompletedGlow(true);
-      const timer = setTimeout(() => setShowCompletedGlow(false), 2000);
-      return () => clearTimeout(timer);
-    }
-    setShowCompletedGlow(false);
-    return undefined;
-  }, [isCompleted]);
-
-  const resolvedStatus = showCompletedGlow ? 'completed' : (isCompleted ? 'idle' : status);
+  const config = TYPE_CONFIG[type] || TYPE_CONFIG.analysis;
+  const TypeIcon = config.icon;
 
   return (
     <>
-      {/* ── Input handle (top) ─────────────────────────────────────── */}
       <Handle
         type="target"
         position={Position.Top}
-        className="h-2 w-2 rounded-full border-2 border-background bg-zinc-400"
+        className="h-2.5 w-2.5 border-2 border-white bg-slate-300"
       />
 
-      {/* ── Card body ──────────────────────────────────────────────── */}
       <div
         className={cn(
-          'relative flex min-w-[160px] items-center gap-2.5 rounded-xl border',
-          'bg-card px-3.5 py-2.5 transition-all duration-300',
-          STATUS_BORDER[resolvedStatus],
-          STATUS_RING[resolvedStatus],
-          isRunning && 'animate-pulse',
+          'relative w-[190px] overflow-hidden rounded-[26px] border p-4 transition-all duration-300',
+          STATUS_STYLES[status] || STATUS_STYLES.idle,
+          isSelected && 'ring-2 ring-slate-950/14',
+          isCurrent && status === 'running' && 'animate-pulse',
         )}
       >
-        {/* Type icon */}
-        <div
-          className={cn(
-            'flex h-8 w-8 shrink-0 items-center justify-center',
-            'rounded-lg transition-colors duration-300',
-            isRunning ? 'bg-blue-500/10' : 'bg-muted',
-          )}
-        >
-          {isRunning ? (
-            <Loader2
-              size={16}
-              className="animate-spin text-blue-500"
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.14),transparent_55%)]" />
+
+        <div className="relative flex items-start justify-between gap-3">
+          <div
+            className={cn(
+              'flex h-10 w-10 items-center justify-center rounded-2xl border bg-white/76',
+              status === 'running'
+                ? 'border-white/12 bg-white/8'
+                : config.badgeClass,
+            )}
+          >
+            <StatusIcon
+              status={status}
+              typeIcon={TypeIcon}
+              typeIconClass={config.iconClass}
             />
-          ) : (isCompleted || isSuccess) ? (
-            <CheckCircle2 size={16} className="text-emerald-500" />
-          ) : (
-            <TypeIcon size={16} className={typeConf.accent} />
-          )}
+          </div>
+
+          <div className="flex flex-col items-end gap-1">
+            <span className={cn(
+              'rounded-full border px-2 py-1 text-[10px] font-medium uppercase tracking-[0.16em]',
+              status === 'running'
+                ? 'border-white/12 bg-white/10 text-white/75'
+                : 'border-black/6 bg-white/70 text-slate-500',
+            )}
+            >
+              {subtitle}
+            </span>
+            {activityCount > 0 && (
+              <span className={cn(
+                'rounded-full px-2 py-1 text-[10px] font-medium',
+                status === 'running'
+                  ? 'bg-white/10 text-white/70'
+                  : 'bg-slate-100 text-slate-500',
+              )}
+              >
+                {activityCount}
+                {' '}
+                events
+              </span>
+            )}
+          </div>
         </div>
 
-        {/* Label */}
-        <span className={cn(
-          'truncate text-xs font-medium transition-colors duration-300',
-          isRunning ? 'text-blue-600 dark:text-blue-400' : 'text-foreground',
-        )}
-        >
-          {label}
-        </span>
-
-        {/* Trailing status indicator */}
-        {isRunning && (
-          <Loader2
-            size={12}
-            className="ml-auto shrink-0 animate-spin text-blue-400"
-          />
-        )}
-        {(isSuccess || showCompletedGlow) && (
-          <CheckCircle2
-            size={14}
-            className="ml-auto shrink-0 text-emerald-500"
-          />
-        )}
-        {status === 'error' && (
-          <AlertTriangle
-            size={14}
-            className="ml-auto shrink-0 text-red-500"
-          />
-        )}
+        <div className="relative mt-4">
+          <p className={cn(
+            'text-sm font-semibold tracking-tight',
+            status === 'running' ? 'text-white' : 'text-slate-950',
+          )}
+          >
+            {label}
+          </p>
+          <p className={cn(
+            'mt-1 text-[12px] leading-5',
+            status === 'running'
+              ? 'text-white/68'
+              : status === 'paused'
+                ? 'text-amber-800/80'
+                : 'text-slate-500',
+          )}
+          >
+            {detail}
+          </p>
+        </div>
       </div>
 
-      {/* ── Output handle (bottom) ─────────────────────────────────── */}
       <Handle
         type="source"
         position={Position.Bottom}
-        className="h-2 w-2 rounded-full border-2 border-background bg-zinc-400"
+        className="h-2.5 w-2.5 border-2 border-white bg-slate-300"
       />
     </>
   );

@@ -4,6 +4,7 @@ import {
 import { motion } from 'framer-motion';
 import { Bot, User, Loader2 } from 'lucide-react';
 import { useChatStore } from '@/stores/chatStore';
+import { useWorkflowRuntimeStore } from '@/stores/workflowRuntimeStore';
 import { apiClient } from '@/http/client';
 import { MarkdownMessage } from '@/components/GenerativeUI/MarkdownMessage';
 import { ToolCallCard } from '@/components/GenerativeUI/ToolCallCard';
@@ -124,17 +125,23 @@ function resolveToolStatus(msg) {
 /** @param {{ msg: Message, onInteractionSubmit?: Function }} props */
 const MessageRow = memo(({ msg, onInteractionSubmit }) => {
   const msgType = resolveMessageType(msg);
+  const selectStepByMessageId = useWorkflowRuntimeStore((s) => s.selectStepByMessageId);
+  const selectedMessageId = useWorkflowRuntimeStore((s) => s.selectedMessageId);
+  const workflowPhase = useWorkflowRuntimeStore((s) => s.phase);
+  const workflowStatus = useWorkflowRuntimeStore((s) => s.status);
 
   // ── Tool call card ──────────────────────────────────────────────
   if (msgType === 'tool_call') {
     const tool = msg.toolCalls?.[0];
     return (
-      <div className="px-4 py-1">
+      <div id={`message-${msg.id}`} className="px-4 py-1">
         <ToolCallCard
           toolName={tool?.name || msg.metadata?.toolName || 'Unknown tool'}
           args={tool?.args}
           status={resolveToolStatus(msg)}
           result={tool?.result}
+          onInspect={() => selectStepByMessageId(msg.id)}
+          isActive={selectedMessageId === msg.id}
         />
       </div>
     );
@@ -143,7 +150,7 @@ const MessageRow = memo(({ msg, onInteractionSubmit }) => {
   // ── Interaction form ────────────────────────────────────────────
   if (msgType === 'interaction') {
     return (
-      <div className="px-4 py-1">
+      <div id={`message-${msg.id}`} className="px-4 py-1">
         <InteractionForm
           widgets={msg.metadata?.widgets ?? []}
           onSubmit={onInteractionSubmit}
@@ -155,14 +162,16 @@ const MessageRow = memo(({ msg, onInteractionSubmit }) => {
   // ── System message ──────────────────────────────────────────────
   if (msg.role === 'system') {
     return (
-      <motion.div
-        variants={bubbleVariants}
-        initial="hidden"
-        animate="visible"
-        className="px-4 py-2 text-center text-xs text-muted-foreground"
-      >
-        {msg.content}
-      </motion.div>
+      <div id={`message-${msg.id}`}>
+        <motion.div
+          variants={bubbleVariants}
+          initial="hidden"
+          animate="visible"
+          className="px-4 py-2 text-center text-xs text-muted-foreground"
+        >
+          {msg.content}
+        </motion.div>
+      </div>
     );
   }
 
@@ -174,34 +183,43 @@ const MessageRow = memo(({ msg, onInteractionSubmit }) => {
   const isUser = msg.role === 'user';
 
   return (
-    <motion.div
-      variants={bubbleVariants}
-      initial="hidden"
-      animate="visible"
-      className={cn(
-        'flex items-start gap-3 px-4 py-2',
-        isUser && 'flex-row-reverse',
-      )}
-    >
-      <Avatar author={msg.role} />
-
-      <div
+    <div id={`message-${msg.id}`}>
+      <motion.div
+        variants={bubbleVariants}
+        initial="hidden"
+        animate="visible"
         className={cn(
-          'max-w-[75%] rounded-2xl px-4 py-2.5',
-          isUser
-            ? 'rounded-tr-sm bg-primary text-primary-foreground'
-            : 'rounded-tl-sm bg-muted text-foreground',
+          'flex items-start gap-3 px-4 py-2',
+          isUser && 'flex-row-reverse',
         )}
       >
-        {isUser ? (
-          <p className="whitespace-pre-wrap text-sm leading-relaxed">
-            {msg.content}
-          </p>
-        ) : (
-          <MarkdownMessage content={msg.content} />
-        )}
-      </div>
-    </motion.div>
+        <Avatar author={msg.role} />
+
+        <div
+          className={cn(
+            'max-w-[75%] rounded-2xl px-4 py-2.5',
+            isUser
+              ? 'rounded-tr-sm bg-primary text-primary-foreground'
+              : 'rounded-tl-sm bg-muted text-foreground',
+          )}
+        >
+          {!isUser && msg.status === 'streaming' && workflowPhase === 'live' && (
+            <div className="mb-2 inline-flex items-center gap-1 rounded-full border border-foreground/10 bg-background/70 px-2 py-1 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground/80">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              {workflowStatus === 'waiting' ? 'Waiting in canvas' : 'Live in canvas'}
+            </div>
+          )}
+
+          {isUser ? (
+            <p className="whitespace-pre-wrap text-sm leading-relaxed">
+              {msg.content}
+            </p>
+          ) : (
+            <MarkdownMessage content={msg.content} />
+          )}
+        </div>
+      </motion.div>
+    </div>
   );
 });
 MessageRow.displayName = 'MessageRow';
@@ -223,6 +241,7 @@ export function ChatMain({ className, onInteractionSubmit }) {
   const isTyping = useChatStore((s) => s.isTyping);
   const hasMore = useChatStore((s) => s.hasMore);
   const isLoadingMore = useChatStore((s) => s.isLoadingMore);
+  const selectedMessageId = useWorkflowRuntimeStore((s) => s.selectedMessageId);
 
   const endRef = useRef(null);
   const scrollContainerRef = useRef(null);
@@ -252,6 +271,12 @@ export function ChatMain({ className, onInteractionSubmit }) {
     container.scrollTop = anchor.scrollTop + (newScrollHeight - anchor.scrollHeight);
     pendingAnchorRef.current = null;
   }, [messages]);
+
+  useEffect(() => {
+    if (!selectedMessageId) return;
+    const target = document.getElementById(`message-${selectedMessageId}`);
+    target?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [selectedMessageId]);
 
   // ── Load older messages (cursor pagination) ─────────────────────
   const loadOlderMessages = useCallback(async () => {

@@ -8,6 +8,7 @@ import {
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useConversations, chatQueryKeys } from '@/hooks/useChatHistory';
 import { useChatStore } from '@/stores/chatStore';
+import { useWorkflowRuntimeStore } from '@/stores/workflowRuntimeStore';
 import { apiClient } from '@/http/client';
 import { cn } from '@/lib/utils';
 
@@ -194,12 +195,14 @@ export default function ConversationSidebar() {
 
   const handleNewChat = useCallback(() => {
     clearChat();
+    useWorkflowRuntimeStore.getState().resetRuntime();
     useChatStore.getState().setHistoricalTrack(false);
   }, [clearChat]);
 
   const handleSelect = useCallback((id) => {
     if (id === useChatStore.getState().currentSessionId) return;
     useChatStore.getState().clearChat();
+    useWorkflowRuntimeStore.getState().resetRuntime();
     setCurrentSessionId(id);
     useChatStore.getState().setHistoricalTrack(true);
   }, [setCurrentSessionId]);
@@ -208,6 +211,7 @@ export default function ConversationSidebar() {
     deleteMutation.mutate(id);
     if (useChatStore.getState().currentSessionId === id) {
       clearChat();
+      useWorkflowRuntimeStore.getState().resetRuntime();
     }
   }, [deleteMutation, clearChat]);
 

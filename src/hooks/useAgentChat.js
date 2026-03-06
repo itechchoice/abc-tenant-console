@@ -2,6 +2,7 @@ import { useRef, useCallback, useEffect } from 'react';
 import { fetchEventSource } from '@microsoft/fetch-event-source';
 import { useAuthStore } from '@/stores/authStore';
 import { useChatStore } from '@/stores/chatStore';
+import { useWorkflowRuntimeStore } from '@/stores/workflowRuntimeStore';
 import { apiClient } from '@/http/client';
 
 /**
@@ -35,7 +36,8 @@ import { apiClient } from '@/http/client';
  *
  * @typedef {object} UseAgentChatReturn
  * @property {(content: string, metadata?: SendMessageMeta) => Promise<void>} sendMessage
- * @property {(taskId: string, existingAssistantMessageId?: string) => Promise<void>} connectToTaskStream
+ * @property {(taskId: string, existingAssistantMessageId?: string)
+ *   => Promise<void>} connectToTaskStream
  * @property {() => void} stopStream
  * @property {boolean} isLoading
  */
@@ -83,6 +85,31 @@ function buildSSEHandlers({
 }) {
   let streamedContent = initialContent;
 
+  function ensureResponseStep(chatMode) {
+    const runtime = useWorkflowRuntimeStore.getState();
+    if (runtime.phase === 'idle') return;
+
+    const currentStep = runtime.steps.find((step) => step.id === runtime.currentStepId);
+    const responseNode = chatMode === 'model' ? 'response' : 'respond';
+    if (currentStep?.nodeKey === responseNode && currentStep.status === 'running') {
+      return;
+    }
+
+    runtime.recordStep({
+      stepId: `${assistantMessageId}-${responseNode}`,
+      stepName: chatMode === 'model' ? 'MODEL_RESPONSE' : 'FINAL_RESPONSE',
+      title: chatMode === 'model' ? 'Streaming response' : 'Drafting response',
+      detail: chatMode === 'model'
+        ? 'The model is generating a direct answer.'
+        : 'Preparing the final response for the user.',
+      nodeKey: responseNode,
+      kind: 'phase',
+      status: 'running',
+      messageId: assistantMessageId,
+      chatMode,
+    });
+  }
+
   return {
     // ── onopen ───────────────────────────────────────────────────────
     async onopen(response) {
@@ -92,8 +119,29 @@ function buildSSEHandlers({
         );
       }
       const { setTyping, updateMessage } = useChatStore.getState();
+      const { chatMode } = useChatStore.getState();
       setTyping(true);
       updateMessage(assistantMessageId, { status: 'streaming' });
+
+      if (chatMode === 'model') {
+        const runtime = useWorkflowRuntimeStore.getState();
+        runtime.startExecution({
+          chatMode,
+          status: 'preparing',
+          nodeKey: 'prompt',
+        });
+        runtime.recordStep({
+          stepId: `${assistantMessageId}-model`,
+          stepName: 'MODEL_INFERENCE',
+          title: 'Running model',
+          detail: 'Generating a direct model response.',
+          nodeKey: 'model',
+          kind: 'phase',
+          status: 'running',
+          messageId: assistantMessageId,
+          chatMode,
+        });
+      }
     },
 
     // ── onmessage (event router) ─────────────────────────────────────
@@ -110,6 +158,8 @@ function buildSSEHandlers({
         addMessage, updateMessage, setTyping, setWorkflowInfo,
         setWorkflowState, setCurrentSessionId,
       } = useChatStore.getState();
+      const runtime = useWorkflowRuntimeStore.getState();
+      const { chatMode } = useChatStore.getState();
 
       switch (msg.event) {
         // ── Session initialisation (POST /chat only) ────────────────
@@ -124,6 +174,27 @@ function buildSSEHandlers({
               activeTaskId: initTaskId,
               workflowStatus: 'running',
               activeStepName: 'init',
+            });
+          }
+
+          runtime.startExecution({
+            sessionId: newSid ?? null,
+            taskId: initTaskId ?? null,
+            chatMode,
+            status: 'preparing',
+          });
+
+          if (initTaskId) {
+            runtime.recordStep({
+              stepId: `${initTaskId}-prepare`,
+              stepName: 'INIT',
+              title: 'Preparing execution',
+              detail: 'Booting the orchestration runtime.',
+              nodeKey: chatMode === 'model' ? 'prompt' : 'understand',
+              kind: 'phase',
+              status: 'running',
+              taskId: initTaskId,
+              chatMode,
             });
           }
           break;
@@ -148,6 +219,7 @@ function buildSSEHandlers({
           }
 
           if (text) {
+            ensureResponseStep(chatMode);
             streamedContent += text;
             updateMessage(assistantMessageId, {
               content: streamedContent,
@@ -164,6 +236,22 @@ function buildSSEHandlers({
             activeTaskId: taskId,
             workflowStatus: 'running',
             activeStepName: 'init',
+          });
+          runtime.startExecution({
+            taskId,
+            chatMode,
+            status: 'preparing',
+          });
+          runtime.recordStep({
+            stepId: `${taskId || assistantMessageId}-prepare`,
+            stepName: 'INIT',
+            title: 'Preparing execution',
+            detail: 'Allocating the runtime task and initial context.',
+            nodeKey: chatMode === 'model' ? 'prompt' : 'understand',
+            kind: 'phase',
+            status: 'running',
+            taskId,
+            chatMode,
           });
           break;
         }
@@ -183,6 +271,11 @@ function buildSSEHandlers({
             stepName = raw?.type ?? payload.type ?? null;
           }
           setWorkflowState({ activeStepName: stepName, workflowStatus: 'running' });
+          runtime.recordStep({
+            stepName,
+            taskId: payload.taskId ?? runtime.taskId,
+            chatMode,
+          });
           break;
         }
 
@@ -195,12 +288,14 @@ function buildSSEHandlers({
         case 'TASK_COMPLETE':
         case 'COMPLETED': {
           if (payload.payload) {
+            ensureResponseStep(chatMode);
             streamedContent = payload.payload;
             updateMessage(assistantMessageId, { content: streamedContent });
           }
           updateMessage(assistantMessageId, { status: 'completed' });
           setTyping(false);
           setWorkflowState({ workflowStatus: 'completed', activeStepName: null });
+          runtime.finishExecution('completed');
           break;
         }
 
@@ -213,6 +308,19 @@ function buildSSEHandlers({
           updateMessage(assistantMessageId, { status: 'error', content: errMsg });
           setTyping(false);
           setWorkflowState({ workflowStatus: 'completed', activeStepName: null });
+          runtime.recordStep({
+            stepId: `${runtime.taskId || assistantMessageId}-failed`,
+            stepName: 'TASK_FAILED',
+            title: 'Execution failed',
+            detail: errMsg,
+            nodeKey: runtime.currentNodeKey || (chatMode === 'model' ? 'response' : 'respond'),
+            kind: 'system',
+            status: 'failed',
+            messageId: assistantMessageId,
+            error: errMsg,
+            chatMode,
+          });
+          runtime.finishExecution('failed');
           break;
         }
 
@@ -232,6 +340,13 @@ function buildSSEHandlers({
         case 'tool_call': {
           const src = payload.data ?? payload;
           const resolvedToolId = src.id || crypto.randomUUID();
+          runtime.recordToolCall({
+            messageId: resolvedToolId,
+            toolName: src.toolName ?? src.name ?? null,
+            args: src.toolArgs ?? src.args,
+            taskId: runtime.taskId,
+            chatMode,
+          });
           addMessage({
             id: resolvedToolId,
             role: 'tool',
@@ -254,12 +369,14 @@ function buildSSEHandlers({
         case 'node_pending': {
           const { workflowId, nodeId } = payload;
           setWorkflowInfo(workflowId ?? null, nodeId ?? null);
+          runtime.syncExecutionContext({ workflowId: workflowId ?? null });
           break;
         }
 
         case 'node_complete': {
           const { workflowId } = payload;
           setWorkflowInfo(workflowId ?? null, null);
+          runtime.syncExecutionContext({ workflowId: workflowId ?? null });
           break;
         }
 
@@ -275,6 +392,12 @@ function buildSSEHandlers({
             status: 'completed',
             metadata: { type: 'interaction', widgets },
           });
+          runtime.markAwaitingInteraction({
+            interactionId: interactionId ?? null,
+            messageId: interactionId ?? null,
+            widgetCount: widgets.length,
+            chatMode,
+          });
           break;
         }
 
@@ -282,6 +405,7 @@ function buildSSEHandlers({
         case 'complete':
           updateMessage(assistantMessageId, { status: 'completed' });
           setTyping(false);
+          runtime.finishExecution('completed');
           break;
 
         // ── Error ───────────────────────────────────────────────────
@@ -294,6 +418,19 @@ function buildSSEHandlers({
             content: serverMsg,
           });
           setTyping(false);
+          runtime.recordStep({
+            stepId: `${runtime.taskId || assistantMessageId}-server-error`,
+            stepName: 'ERROR',
+            title: 'Server error',
+            detail: serverMsg,
+            nodeKey: runtime.currentNodeKey || (chatMode === 'model' ? 'response' : 'respond'),
+            kind: 'system',
+            status: 'failed',
+            messageId: assistantMessageId,
+            error: serverMsg,
+            chatMode,
+          });
+          runtime.finishExecution('failed');
           break;
         }
 
@@ -324,6 +461,19 @@ function buildSSEHandlers({
           timestamp: Date.now(),
           status: 'error',
         });
+        useWorkflowRuntimeStore.getState().recordStep({
+          stepId: `${assistantMessageId}-transport-error`,
+          stepName: 'TRANSPORT_ERROR',
+          title: 'Connection lost',
+          detail: 'The live connection was interrupted before the task finished.',
+          nodeKey: useWorkflowRuntimeStore.getState().currentNodeKey
+            || (useChatStore.getState().chatMode === 'model' ? 'response' : 'respond'),
+          kind: 'system',
+          status: 'failed',
+          messageId: assistantMessageId,
+          chatMode: useChatStore.getState().chatMode,
+        });
+        useWorkflowRuntimeStore.getState().finishExecution('failed');
       }
 
       controllerRef.current = null;
@@ -373,6 +523,11 @@ export function useAgentChat(options = {}) {
      *   placeholder message is created automatically.
      */
     async (taskId, existingAssistantMessageId) => {
+      useWorkflowRuntimeStore.getState().startExecution({
+        taskId,
+        chatMode: useChatStore.getState().chatMode,
+        status: 'running',
+      });
       controllerRef.current?.abort();
       const controller = new AbortController();
       controllerRef.current = controller;
@@ -430,7 +585,7 @@ export function useAgentChat(options = {}) {
      */
     async (content, metadata = {}) => {
       const {
-        addMessage, updateMessage, setTyping, setCurrentSessionId,
+        addMessage, updateMessage, setTyping,
         currentSessionId, chatMode, selectedAgentId, selectedModel,
         isHistoricalTrack,
       } = useChatStore.getState();
@@ -473,6 +628,15 @@ export function useAgentChat(options = {}) {
       const baseUrl = import.meta.env.VITE_API_BASE_URL || '/tenant-console-api';
       const sessionId = metadata.sessionId || currentSessionId || undefined;
       const headers = getSSEHeaders();
+
+      if (chatMode === 'agent') {
+        useWorkflowRuntimeStore.getState().startExecution({
+          sessionId: sessionId ?? null,
+          chatMode,
+          status: 'preparing',
+          nodeKey: 'understand',
+        });
+      }
 
       // ==================================================================
       // TRACK A — Quick flow: POST /chat (new conversations)

@@ -4,6 +4,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { PanelRightClose, PanelRight, GripVertical } from 'lucide-react';
 import { useChatStore } from '@/stores/chatStore';
+import { useWorkflowRuntimeStore } from '@/stores/workflowRuntimeStore';
 import { WorkflowCanvas } from '@/components/Workflow/WorkflowCanvas';
 import { cn } from '@/lib/utils';
 import ConversationSidebar from './components/ConversationSidebar';
@@ -98,6 +99,7 @@ function Splitter({ onMouseDown, isDragging }) {
  */
 function Home() {
   const currentWorkflowId = useChatStore((s) => s.currentWorkflowId);
+  const workflowPhase = useWorkflowRuntimeStore((s) => s.phase);
   const [canvasVisible, setCanvasVisible] = useState(true);
   const [panelWidth, setPanelWidth] = useState(getInitialWidth);
   const [isDragging, setIsDragging] = useState(false);
@@ -107,7 +109,7 @@ function Home() {
 
   const toggleCanvas = useCallback(() => setCanvasVisible((v) => !v), []);
 
-  const showCanvas = canvasVisible || !!currentWorkflowId;
+  const showCanvas = canvasVisible || !!currentWorkflowId || workflowPhase !== 'idle';
 
   // ── Keep MAX_WIDTH in sync on window resize ──────────────────────
   useEffect(() => {

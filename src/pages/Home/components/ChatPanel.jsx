@@ -8,6 +8,7 @@ import {
 import { useQueryClient } from '@tanstack/react-query';
 import LogoSvg from '@/assets/svg/logo.svg';
 import { useChatStore } from '@/stores/chatStore';
+import { useWorkflowRuntimeStore } from '@/stores/workflowRuntimeStore';
 import { useConversationDetail, chatQueryKeys } from '@/hooks/useChatHistory';
 import { useAgentChat } from '@/hooks/useAgentChat';
 import { ChatMain } from '@/components/Chat/ChatMain';
@@ -176,6 +177,11 @@ const ChatInput = memo(({ onSend, isLoading, onStop }) => {
 
   const chatMode = useChatStore((s) => s.chatMode);
   const setChatMode = useChatStore((s) => s.setChatMode);
+  const workflowPhase = useWorkflowRuntimeStore((s) => s.phase);
+  const workflowStatus = useWorkflowRuntimeStore((s) => s.status);
+  const currentStepId = useWorkflowRuntimeStore((s) => s.currentStepId);
+  const steps = useWorkflowRuntimeStore((s) => s.steps);
+  const currentStep = steps.find((step) => step.id === currentStepId);
 
   const [burstKey, setBurstKey] = useState(0);
   const prevModeRef = useRef(chatMode);
@@ -221,6 +227,12 @@ const ChatInput = memo(({ onSend, isLoading, onStop }) => {
   }, [value, adjustHeight]);
 
   const canSend = value.trim().length > 0 && !isLoading;
+  const showCanvasHint = workflowPhase === 'live' || workflowPhase === 'review';
+  const placeholder = workflowStatus === 'waiting'
+    ? 'Provide the requested details to continue the workflow...'
+    : workflowPhase === 'live'
+      ? 'Reply while the execution is still running...'
+      : 'Reply...';
 
   return (
     <div className="px-4 pb-4 pt-2">
@@ -246,8 +258,36 @@ const ChatInput = memo(({ onSend, isLoading, onStop }) => {
               'bg-background transition-all duration-300',
               'focus-within:border-border',
               MODE_GLOW[chatMode],
+              workflowStatus === 'waiting' && 'border-amber-200 bg-amber-50/50',
             )}
           >
+            {showCanvasHint && (
+              <div className="flex items-center justify-between border-b border-border/40 px-4 py-2 text-[11px]">
+                <div className="flex items-center gap-2 text-muted-foreground/80">
+                  <span className={cn(
+                    'h-1.5 w-1.5 rounded-full',
+                    workflowStatus === 'waiting'
+                      ? 'bg-amber-500'
+                      : workflowPhase === 'review'
+                        ? 'bg-emerald-500'
+                        : 'bg-sky-500 animate-pulse',
+                  )}
+                  />
+                  <span className="font-medium text-foreground/75">
+                    {workflowStatus === 'waiting'
+                      ? 'Workflow paused for your input'
+                      : workflowPhase === 'review'
+                        ? 'Execution summary ready in the canvas'
+                        : 'Live execution is active in the canvas'}
+                  </span>
+                </div>
+
+                <span className="truncate text-muted-foreground/60">
+                  {currentStep?.title || 'Execution stage'}
+                </span>
+              </div>
+            )}
+
             {/* ── Mode tabs ─────────────────────────────────────────── */}
             <div className="px-4 pt-3 pb-0.5">
               <div className="inline-flex items-center gap-0.5 rounded-lg bg-muted/40 p-0.5">
@@ -275,7 +315,7 @@ const ChatInput = memo(({ onSend, isLoading, onStop }) => {
               value={value}
               onChange={(e) => setValue(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Reply..."
+              placeholder={placeholder}
               rows={1}
               disabled={isLoading}
               className={cn(
@@ -348,7 +388,9 @@ const ChatInput = memo(({ onSend, isLoading, onStop }) => {
         </div>
 
         <p className="mt-2.5 text-center text-[10px] text-muted-foreground/30">
-          AI-generated content may be inaccurate. Verify important information.
+          {workflowStatus === 'waiting'
+            ? 'The workflow is waiting for your input. Review the request before continuing.'
+            : 'AI-generated content may be inaccurate. Verify important information.'}
         </p>
       </div>
     </div>
