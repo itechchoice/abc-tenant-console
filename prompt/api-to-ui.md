@@ -9,7 +9,7 @@
 
 @project.mdc @architecture-pure-jsx-types.mdc @src/components/Workflow/WorkflowCanvas.jsx @src/stores/chatStore.js @src/components/Workflow/nodes/AgentNode.jsx
 @.cursor/rules/project.mdc @.cursor/rules/architecture-pure-jsx-types.mdc @src/components/Workflow/WorkflowCanvas.jsx @src/stores/chatStore.js @src/components/Workflow/nodes/AgentNode.jsx 
-请作为 Senior UI/UX Engineer 和 Senior React Architect，帮我完成阶段四的最后一步，也是整个系统的核心护城河：“打通画布与 Agent 状态流”。
+请担任 Senior UI/UX Engineer 和 Senior React Architect，帮我完成阶段四的最后一步，也是整个系统的核心护城河：“打通画布与 Agent 状态流”。
 
 **任务拆解：**
 重构 `src/components/Workflow/WorkflowCanvas.jsx`，使其成为一个由状态机驱动的响应式画布。

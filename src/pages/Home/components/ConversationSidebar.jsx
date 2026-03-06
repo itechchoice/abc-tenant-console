@@ -194,12 +194,14 @@ export default function ConversationSidebar() {
 
   const handleNewChat = useCallback(() => {
     clearChat();
+    useChatStore.getState().setHistoricalTrack(false);
   }, [clearChat]);
 
   const handleSelect = useCallback((id) => {
     if (id === useChatStore.getState().currentSessionId) return;
     useChatStore.getState().clearChat();
     setCurrentSessionId(id);
+    useChatStore.getState().setHistoricalTrack(true);
   }, [setCurrentSessionId]);
 
   const handleDelete = useCallback((id) => {

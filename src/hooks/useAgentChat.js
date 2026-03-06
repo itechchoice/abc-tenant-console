@@ -2,6 +2,7 @@ import { useRef, useCallback, useEffect } from 'react';
 import { fetchEventSource } from '@microsoft/fetch-event-source';
 import { useAuthStore } from '@/stores/authStore';
 import { useChatStore } from '@/stores/chatStore';
+import { apiClient } from '@/http/client';
 
 /**
  * @typedef {import('@/schemas/chatSchema').Message} Message
@@ -34,6 +35,7 @@ import { useChatStore } from '@/stores/chatStore';
  *
  * @typedef {object} UseAgentChatReturn
  * @property {(content: string, metadata?: SendMessageMeta) => Promise<void>} sendMessage
+ * @property {(taskId: string, existingAssistantMessageId?: string) => Promise<void>} connectToTaskStream
  * @property {() => void} stopStream
  * @property {boolean} isLoading
  */
@@ -43,17 +45,307 @@ import { useChatStore } from '@/stores/chatStore';
 // ---------------------------------------------------------------------------
 
 const SSE_ENDPOINT = '/chat';
+const TASKS_ENDPOINT = '/tasks';
+
+// ---------------------------------------------------------------------------
+// Shared helpers (module-level, not hook-dependent)
+// ---------------------------------------------------------------------------
+
+/** @returns {Record<string, string>} */
+function getSSEHeaders() {
+  const { token, userInfo } = useAuthStore.getState();
+  return {
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...(userInfo?.tenantId ? { 'X-Tenant-Id': userInfo.tenantId } : {}),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// SSE handler factory — reused by BOTH quick track and historical track.
+// ---------------------------------------------------------------------------
+
+/**
+ * Creates the full set of `fetchEventSource` callbacks that drive
+ * the Zustand store.  Encapsulates the `streamedContent` accumulator
+ * as a closure variable so callers never need to manage it.
+ *
+ * @param {object} ctx
+ * @param {string} ctx.assistantMessageId
+ * @param {import('react').MutableRefObject} ctx.onSessionCreatedRef
+ * @param {import('react').MutableRefObject<AbortController|null>} ctx.controllerRef
+ * @param {string} [ctx.initialContent]  Pre-existing content for resumption.
+ */
+function buildSSEHandlers({
+  assistantMessageId,
+  onSessionCreatedRef,
+  controllerRef,
+  initialContent = '',
+}) {
+  let streamedContent = initialContent;
+
+  return {
+    // ── onopen ───────────────────────────────────────────────────────
+    async onopen(response) {
+      if (!response.ok) {
+        throw new Error(
+          `SSE connection rejected: ${response.status} ${response.statusText}`,
+        );
+      }
+      const { setTyping, updateMessage } = useChatStore.getState();
+      setTyping(true);
+      updateMessage(assistantMessageId, { status: 'streaming' });
+    },
+
+    // ── onmessage (event router) ─────────────────────────────────────
+    onmessage(msg) {
+      let payload;
+      try {
+        payload = msg.data ? JSON.parse(msg.data) : {};
+      } catch {
+        console.warn('[useAgentChat] Malformed SSE payload – skipped:', msg.data);
+        return;
+      }
+
+      const {
+        addMessage, updateMessage, setTyping, setWorkflowInfo,
+        setWorkflowState, setCurrentSessionId,
+      } = useChatStore.getState();
+
+      switch (msg.event) {
+        // ── Session initialisation (POST /chat only) ────────────────
+        case 'INIT': {
+          const { sessionId: newSid, taskId: initTaskId } = payload;
+          if (newSid) {
+            setCurrentSessionId(newSid);
+            onSessionCreatedRef.current?.(newSid);
+          }
+          if (initTaskId) {
+            setWorkflowState({
+              activeTaskId: initTaskId,
+              workflowStatus: 'running',
+              activeStepName: 'init',
+            });
+          }
+          break;
+        }
+
+        // ── Streaming token delta ───────────────────────────────────
+        case 'TOKEN_STREAM':
+        case 'TEXT_CHUNK':
+        case 'LLM_CHUNK': {
+          let text = '';
+          const raw = payload.payload;
+
+          if (typeof raw === 'string' && raw.startsWith('{')) {
+            try {
+              const inner = JSON.parse(raw);
+              text = inner.content || '';
+            } catch {
+              console.warn('[useAgentChat] Failed to parse inner payload:', raw);
+            }
+          } else {
+            text = raw?.content ?? raw ?? payload.content ?? payload.data?.text ?? '';
+          }
+
+          if (text) {
+            streamedContent += text;
+            updateMessage(assistantMessageId, {
+              content: streamedContent,
+              status: 'streaming',
+            });
+          }
+          break;
+        }
+
+        // ── Task lifecycle — creation ───────────────────────────────
+        case 'TASK_CREATED': {
+          const taskId = payload.taskId ?? payload.id ?? null;
+          setWorkflowState({
+            activeTaskId: taskId,
+            workflowStatus: 'running',
+            activeStepName: 'init',
+          });
+          break;
+        }
+
+        // ── Task lifecycle — step execution ─────────────────────────
+        case 'STEP_START': {
+          let stepName = null;
+          const raw = payload.payload ?? payload.data;
+          if (typeof raw === 'string') {
+            try {
+              const parsed = JSON.parse(raw);
+              stepName = parsed.type || parsed.stepName || null;
+            } catch {
+              console.warn('[useAgentChat] Failed to parse STEP_START payload:', raw);
+            }
+          } else {
+            stepName = raw?.type ?? payload.type ?? null;
+          }
+          setWorkflowState({ activeStepName: stepName, workflowStatus: 'running' });
+          break;
+        }
+
+        // ── Step complete (informational) ───────────────────────────
+        case 'STEP_COMPLETE':
+          break;
+
+        // ── Stream / task completed ─────────────────────────────────
+        case 'TASK_COMPLETED':
+        case 'TASK_COMPLETE':
+        case 'COMPLETED': {
+          if (payload.payload) {
+            streamedContent = payload.payload;
+            updateMessage(assistantMessageId, { content: streamedContent });
+          }
+          updateMessage(assistantMessageId, { status: 'completed' });
+          setTyping(false);
+          setWorkflowState({ workflowStatus: 'completed', activeStepName: null });
+          break;
+        }
+
+        // ── Task failed ─────────────────────────────────────────────
+        case 'TASK_FAILED': {
+          const errMsg = payload?.data?.message
+            ?? payload?.message
+            ?? 'Task execution failed.';
+          console.error('[SSE] Task failed:', payload);
+          updateMessage(assistantMessageId, { status: 'error', content: errMsg });
+          setTyping(false);
+          setWorkflowState({ workflowStatus: 'completed', activeStepName: null });
+          break;
+        }
+
+        // ── Legacy: message_chunk ───────────────────────────────────
+        case 'message_chunk': {
+          const { content: delta = '' } = payload;
+          streamedContent += delta;
+          updateMessage(assistantMessageId, {
+            content: streamedContent,
+            status: 'streaming',
+          });
+          break;
+        }
+
+        // ── Tool call ───────────────────────────────────────────────
+        case 'TOOL_CALL':
+        case 'tool_call': {
+          const src = payload.data ?? payload;
+          const resolvedToolId = src.id || crypto.randomUUID();
+          addMessage({
+            id: resolvedToolId,
+            role: 'tool',
+            content: '',
+            timestamp: Date.now(),
+            status: 'pending',
+            toolCalls: [{
+              id: resolvedToolId,
+              name: src.toolName ?? src.name,
+              args: src.toolArgs ?? src.args,
+              status: 'running',
+            }],
+            metadata: { type: 'tool_call' },
+          });
+          break;
+        }
+
+        // ── Workflow lifecycle ───────────────────────────────────────
+        case 'workflow_pending':
+        case 'node_pending': {
+          const { workflowId, nodeId } = payload;
+          setWorkflowInfo(workflowId ?? null, nodeId ?? null);
+          break;
+        }
+
+        case 'node_complete': {
+          const { workflowId } = payload;
+          setWorkflowInfo(workflowId ?? null, null);
+          break;
+        }
+
+        // ── Client-side interruption ────────────────────────────────
+        case 'client_interaction': {
+          const { widgets = [], interactionId } = payload;
+          setTyping(false);
+          addMessage({
+            id: interactionId || crypto.randomUUID(),
+            role: 'assistant',
+            content: '',
+            timestamp: Date.now(),
+            status: 'completed',
+            metadata: { type: 'interaction', widgets },
+          });
+          break;
+        }
+
+        // ── Legacy: complete ────────────────────────────────────────
+        case 'complete':
+          updateMessage(assistantMessageId, { status: 'completed' });
+          setTyping(false);
+          break;
+
+        // ── Error ───────────────────────────────────────────────────
+        case 'error': {
+          const serverMsg = payload?.message
+            || 'An error occurred while processing your request.';
+          console.error('[SSE] Server-side error event:', payload);
+          updateMessage(assistantMessageId, {
+            status: 'error',
+            content: serverMsg,
+          });
+          setTyping(false);
+          break;
+        }
+
+        default:
+          break;
+      }
+    },
+
+    // ── onclose ──────────────────────────────────────────────────────
+    onclose() {
+      useChatStore.getState().setTyping(false);
+      controllerRef.current = null;
+    },
+
+    // ── onerror ──────────────────────────────────────────────────────
+    onerror(err) {
+      console.error('[useAgentChat] SSE transport error:', err);
+
+      const store = useChatStore.getState();
+      store.setTyping(false);
+
+      if (err?.name !== 'AbortError') {
+        store.updateMessage(assistantMessageId, { status: 'error' });
+        store.addMessage({
+          id: crypto.randomUUID(),
+          role: 'system',
+          content: 'Connection lost. Please check your network and try again.',
+          timestamp: Date.now(),
+          status: 'error',
+        });
+      }
+
+      controllerRef.current = null;
+      throw err;
+    },
+  };
+}
 
 // ---------------------------------------------------------------------------
 // Hook implementation
 // ---------------------------------------------------------------------------
 
 /**
- * Encapsulates the full lifecycle of an LLM streaming conversation turn.
+ * Encapsulates the full lifecycle of an LLM streaming conversation turn
+ * with **dual-track** dispatch:
  *
- * Backed by `@microsoft/fetch-event-source` and Zustand stores.
- * Handles both the legacy event format (`message_chunk`, `complete`) and
- * the v2 format (`INIT`, `TEXT_CHUNK`, `COMPLETED`).
+ * - **Quick track** (`!isHistoricalTrack`):  `POST /chat` SSE — for new chats.
+ * - **Historical track** (`isHistoricalTrack`):
+ *     1. `POST /tasks` (HTTP) to create a task, then
+ *     2. `GET /tasks/{taskId}/events` SSE to stream results.
+ *
+ * Both tracks share the **exact same** SSE event router via `buildSSEHandlers`.
  *
  * @param {UseAgentChatOptions} [options]
  * @returns {UseAgentChatReturn}
@@ -69,7 +361,66 @@ export function useAgentChat(options = {}) {
   useEffect(() => () => { controllerRef.current?.abort(); }, []);
 
   // ---------------------------------------------------------------------------
-  // sendMessage
+  // connectToTaskStream — attaches to a running or newly-created task's SSE.
+  // ---------------------------------------------------------------------------
+
+  const connectToTaskStream = useCallback(
+    /**
+     * @param {string} taskId
+     * @param {string} [existingAssistantMessageId]
+     *   Pass the ID of an already-rendered assistant message (e.g. when
+     *   resuming a RUNNING task from session history).  If omitted a new
+     *   placeholder message is created automatically.
+     */
+    async (taskId, existingAssistantMessageId) => {
+      controllerRef.current?.abort();
+      const controller = new AbortController();
+      controllerRef.current = controller;
+
+      let assistantMessageId = existingAssistantMessageId;
+      let initialContent = '';
+
+      if (!assistantMessageId) {
+        assistantMessageId = crypto.randomUUID();
+        useChatStore.getState().addMessage({
+          id: assistantMessageId,
+          role: 'assistant',
+          content: '',
+          timestamp: Date.now(),
+          status: 'pending',
+        });
+      } else {
+        const existing = useChatStore.getState().messages
+          .find((m) => m.id === assistantMessageId);
+        initialContent = existing?.content || '';
+      }
+
+      const handlers = buildSSEHandlers({
+        assistantMessageId,
+        onSessionCreatedRef,
+        controllerRef,
+        initialContent,
+      });
+
+      const baseUrl = import.meta.env.VITE_API_BASE_URL || '/api';
+
+      try {
+        await fetchEventSource(`${baseUrl}${TASKS_ENDPOINT}/${taskId}/events`, {
+          method: 'GET',
+          headers: getSSEHeaders(),
+          signal: controller.signal,
+          ...handlers,
+        });
+      } catch (err) {
+        if (err?.name === 'AbortError') return;
+        console.error('[useAgentChat] Task stream error:', err);
+      }
+    },
+    [],
+  );
+
+  // ---------------------------------------------------------------------------
+  // sendMessage — dual-track dispatch
   // ---------------------------------------------------------------------------
 
   const sendMessage = useCallback(
@@ -78,11 +429,10 @@ export function useAgentChat(options = {}) {
      * @param {SendMessageMeta} [metadata]
      */
     async (content, metadata = {}) => {
-      const { token, userInfo } = useAuthStore.getState();
       const {
-        addMessage, updateMessage, setTyping, setWorkflowInfo,
-        setWorkflowState, setCurrentSessionId, currentSessionId,
-        chatMode, selectedAgentId, selectedModel,
+        addMessage, updateMessage, setTyping, setCurrentSessionId,
+        currentSessionId, chatMode, selectedAgentId, selectedModel,
+        isHistoricalTrack,
       } = useChatStore.getState();
 
       // ── Defensive pre-flight checks ────────────────────────────────
@@ -120,248 +470,79 @@ export function useAgentChat(options = {}) {
         status: 'pending',
       });
 
-      let streamedContent = '';
-
-      // ── Build mode-aware payload (ENGINE_API POST /chat) ───────────
       const baseUrl = import.meta.env.VITE_API_BASE_URL || '/api';
       const sessionId = metadata.sessionId || currentSessionId || undefined;
-      const tenantId = userInfo?.tenantId;
+      const headers = getSSEHeaders();
 
-      const payload = { message: content };
-      if (sessionId) payload.sessionId = sessionId;
-      if (chatMode === 'agent') payload.agentId = selectedAgentId;
-      if (chatMode === 'model') payload.modelId = selectedModel.id;
+      // ==================================================================
+      // TRACK A — Quick flow: POST /chat (new conversations)
+      // ==================================================================
+      if (!isHistoricalTrack) {
+        const reqPayload = { message: content };
+        if (sessionId) reqPayload.sessionId = sessionId;
+        if (chatMode === 'agent') reqPayload.agentId = selectedAgentId;
+        if (chatMode === 'model') reqPayload.modelId = selectedModel.id;
+
+        const handlers = buildSSEHandlers({
+          assistantMessageId,
+          onSessionCreatedRef,
+          controllerRef,
+        });
+
+        try {
+          await fetchEventSource(`${baseUrl}${SSE_ENDPOINT}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', ...headers },
+            body: JSON.stringify(reqPayload),
+            signal: controller.signal,
+            ...handlers,
+          });
+        } catch (err) {
+          if (err?.name === 'AbortError') return;
+          console.error('[useAgentChat] Unhandled stream error:', err);
+        }
+        return;
+      }
+
+      // ==================================================================
+      // TRACK B — Historical flow: POST /tasks → GET /tasks/{id}/events
+      // ==================================================================
+      const taskPayload = { message: content, sessionId };
+      if (chatMode === 'agent') taskPayload.agentId = selectedAgentId;
+      if (chatMode === 'model') taskPayload.modelId = selectedModel.id;
+
+      let taskId;
+      try {
+        const res = await apiClient.post(TASKS_ENDPOINT, taskPayload);
+        taskId = res?.data?.taskId ?? res?.taskId;
+        if (!taskId) throw new Error('Missing taskId in POST /tasks response');
+      } catch (taskErr) {
+        if (taskErr?.name === 'AbortError') return;
+        console.error('[useAgentChat] POST /tasks failed:', taskErr);
+        updateMessage(assistantMessageId, {
+          status: 'error',
+          content: 'Failed to create task. Please try again.',
+        });
+        setTyping(false);
+        return;
+      }
+
+      const handlers = buildSSEHandlers({
+        assistantMessageId,
+        onSessionCreatedRef,
+        controllerRef,
+      });
 
       try {
-        await fetchEventSource(`${baseUrl}${SSE_ENDPOINT}`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-            ...(tenantId ? { 'X-Tenant-Id': tenantId } : {}),
-          },
-          body: JSON.stringify(payload),
+        await fetchEventSource(`${baseUrl}${TASKS_ENDPOINT}/${taskId}/events`, {
+          method: 'GET',
+          headers,
           signal: controller.signal,
-
-          // ── onopen ─────────────────────────────────────────────────
-          async onopen(response) {
-            if (!response.ok) {
-              throw new Error(
-                `SSE connection rejected: ${response.status} ${response.statusText}`,
-              );
-            }
-            setTyping(true);
-            updateMessage(assistantMessageId, { status: 'streaming' });
-          },
-
-          // ── onmessage (event router) ───────────────────────────────
-          onmessage(msg) {
-            let payload;
-            try {
-              payload = msg.data ? JSON.parse(msg.data) : {};
-            } catch {
-              console.warn('[useAgentChat] Malformed SSE payload – skipped:', msg.data);
-              return;
-            }
-
-            switch (msg.event) {
-              // ── v2: Session initialisation ─────────────────────────
-              case 'INIT': {
-                const { sessionId: newSessionId } = payload;
-                if (newSessionId) {
-                  setCurrentSessionId(newSessionId);
-                  onSessionCreatedRef.current?.(newSessionId);
-                }
-                break;
-              }
-
-              // ── v2: Streaming token delta ──────────────────────────
-              case 'TOKEN_STREAM':
-              case 'TEXT_CHUNK':
-              case 'LLM_CHUNK': {
-                let text = '';
-                const raw = payload.payload;
-
-                if (typeof raw === 'string' && raw.startsWith('{')) {
-                  try {
-                    const inner = JSON.parse(raw);
-                    text = inner.content || '';
-                  } catch {
-                    console.warn('[useAgentChat] Failed to parse inner payload:', raw);
-                  }
-                } else {
-                  text = raw?.content ?? raw ?? payload.content ?? '';
-                }
-
-                if (text) {
-                  streamedContent += text;
-                  updateMessage(assistantMessageId, {
-                    content: streamedContent,
-                    status: 'streaming',
-                  });
-                }
-                break;
-              }
-
-              // ── v2: Task lifecycle — creation ──────────────────────
-              case 'TASK_CREATED': {
-                const taskId = payload.taskId ?? payload.id ?? null;
-                setWorkflowState({
-                  activeTaskId: taskId,
-                  workflowStatus: 'running',
-                  activeStepName: 'init',
-                });
-                break;
-              }
-
-              // ── v2: Task lifecycle — step execution ────────────────
-              case 'STEP_START': {
-                let stepName = null;
-                const raw = payload.payload;
-                if (typeof raw === 'string') {
-                  try {
-                    const parsed = JSON.parse(raw);
-                    stepName = parsed.type || parsed.stepName || null;
-                  } catch {
-                    console.warn('[useAgentChat] Failed to parse STEP_START payload:', raw);
-                  }
-                } else {
-                  stepName = raw?.type ?? payload.type ?? null;
-                }
-                setWorkflowState({ activeStepName: stepName, workflowStatus: 'running' });
-                break;
-              }
-
-              // ── v2: Stream completed ───────────────────────────────
-              case 'TASK_COMPLETED':
-              case 'TASK_COMPLETE':
-              case 'COMPLETED': {
-                if (payload.payload) {
-                  streamedContent = payload.payload;
-                  updateMessage(assistantMessageId, { content: streamedContent });
-                }
-                updateMessage(assistantMessageId, { status: 'completed' });
-                setTyping(false);
-                setWorkflowState({ workflowStatus: 'completed', activeStepName: null });
-                break;
-              }
-
-              // ── Legacy: message_chunk ──────────────────────────────
-              case 'message_chunk': {
-                const { content: delta = '' } = payload;
-                streamedContent += delta;
-                updateMessage(assistantMessageId, {
-                  content: streamedContent,
-                  status: 'streaming',
-                });
-                break;
-              }
-
-              // ── Legacy: tool_call ──────────────────────────────────
-              case 'tool_call': {
-                const { id: toolId, toolName, toolArgs } = payload;
-                const resolvedToolId = toolId || crypto.randomUUID();
-                addMessage({
-                  id: resolvedToolId,
-                  role: 'tool',
-                  content: '',
-                  timestamp: Date.now(),
-                  status: 'pending',
-                  toolCalls: [{
-                    id: resolvedToolId,
-                    name: toolName,
-                    args: toolArgs,
-                    status: 'running',
-                  }],
-                  metadata: { type: 'tool_call' },
-                });
-                break;
-              }
-
-              // ── Workflow lifecycle ──────────────────────────────────
-              case 'workflow_pending':
-              case 'node_pending': {
-                const { workflowId, nodeId } = payload;
-                setWorkflowInfo(workflowId ?? null, nodeId ?? null);
-                break;
-              }
-
-              case 'node_complete': {
-                const { workflowId } = payload;
-                setWorkflowInfo(workflowId ?? null, null);
-                break;
-              }
-
-              // ── Client-side interruption ───────────────────────────
-              case 'client_interaction': {
-                const { widgets = [], interactionId } = payload;
-                setTyping(false);
-                addMessage({
-                  id: interactionId || crypto.randomUUID(),
-                  role: 'assistant',
-                  content: '',
-                  timestamp: Date.now(),
-                  status: 'completed',
-                  metadata: { type: 'interaction', widgets },
-                });
-                break;
-              }
-
-              // ── Legacy: complete ───────────────────────────────────
-              case 'complete':
-                updateMessage(assistantMessageId, { status: 'completed' });
-                setTyping(false);
-                break;
-
-              // ── Error ──────────────────────────────────────────────
-              case 'error': {
-                const serverMsg = payload?.message
-                  || 'An error occurred while processing your request.';
-                console.error('[SSE] Server-side error event:', payload);
-                updateMessage(assistantMessageId, {
-                  status: 'error',
-                  content: serverMsg,
-                });
-                setTyping(false);
-                break;
-              }
-
-              default:
-                break;
-            }
-          },
-
-          // ── onclose ────────────────────────────────────────────────
-          onclose() {
-            setTyping(false);
-            controllerRef.current = null;
-          },
-
-          // ── onerror ────────────────────────────────────────────────
-          onerror(err) {
-            console.error('[useAgentChat] SSE transport error:', err);
-
-            const store = useChatStore.getState();
-            store.setTyping(false);
-
-            if (err?.name !== 'AbortError') {
-              updateMessage(assistantMessageId, { status: 'error' });
-              store.addMessage({
-                id: crypto.randomUUID(),
-                role: 'system',
-                content: 'Connection lost. Please check your network and try again.',
-                timestamp: Date.now(),
-                status: 'error',
-              });
-            }
-
-            controllerRef.current = null;
-            throw err;
-          },
+          ...handlers,
         });
       } catch (err) {
         if (err?.name === 'AbortError') return;
-        console.error('[useAgentChat] Unhandled stream error:', err);
+        console.error('[useAgentChat] Task stream error:', err);
       }
     },
     [],
@@ -383,5 +564,7 @@ export function useAgentChat(options = {}) {
 
   const isLoading = useChatStore((s) => s.isTyping);
 
-  return { sendMessage, stopStream, isLoading };
+  return {
+    sendMessage, connectToTaskStream, stopStream, isLoading,
+  };
 }

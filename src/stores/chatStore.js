@@ -33,6 +33,10 @@ import { create } from 'zustand';
  *   Name/type of the step currently executing (e.g. `"DIRECT_CHAT"`), or `null`.
  * @property {'idle' | 'running' | 'completed'} workflowStatus
  *   High-level lifecycle state of the current engine execution.
+ * @property {boolean} isHistoricalTrack
+ *   `true` when the active conversation was loaded from history (sidebar click).
+ *   Controls whether `sendMessage` dispatches via `POST /tasks` + task-events
+ *   SSE (historical track) or the quick `POST /chat` SSE (new-chat track).
  * @property {AssignedProvider | null} selectedModel
  *   Currently selected LLM provider for the chat input.  Persists across
  *   `clearChat` calls as a workspace-level preference.
@@ -67,6 +71,8 @@ import { create } from 'zustand';
  *   ID in a single render batch.
  * @property {(patch: { activeTaskId?: string|null, activeStepName?: string|null, workflowStatus?: 'idle'|'running'|'completed' }) => void} setWorkflowState
  *   Batch-update the engine execution tracking fields.
+ * @property {(flag: boolean) => void} setHistoricalTrack
+ *   Switch between historical track (`true`) and quick-new-chat track (`false`).
  * @property {(model: AssignedProvider | null) => void} setSelectedModel
  *   Set or clear the active LLM provider for the chat input.
  * @property {(mode: 'auto' | 'agent' | 'model') => void} setChatMode
@@ -99,6 +105,7 @@ const INITIAL_STATE = {
   activeTaskId: null,
   activeStepName: null,
   workflowStatus: 'idle',
+  isHistoricalTrack: false,
 };
 
 // ---------------------------------------------------------------------------
@@ -150,6 +157,8 @@ export const useChatStore = create((set) => ({
     activeStepName: patch.activeStepName !== undefined ? patch.activeStepName : state.activeStepName,
     workflowStatus: patch.workflowStatus !== undefined ? patch.workflowStatus : state.workflowStatus,
   })),
+
+  setHistoricalTrack: (flag) => set({ isHistoricalTrack: flag }),
 
   setSelectedModel: (model) => set({ selectedModel: model }),
 

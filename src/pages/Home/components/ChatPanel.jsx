@@ -1,5 +1,5 @@
 import {
-  useState, useRef, useCallback, memo, useEffect,
+  useState, useRef, useCallback, memo, useEffect, useLayoutEffect,
 } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -371,7 +371,9 @@ export default function ChatPanel() {
     queryClient.refetchQueries({ queryKey: chatQueryKeys.conversations });
   }, [queryClient]);
 
-  const { sendMessage, stopStream, isLoading: isSending } = useAgentChat({
+  const {
+    sendMessage, connectToTaskStream, stopStream, isLoading: isSending,
+  } = useAgentChat({
     onSessionCreated: handleSessionCreated,
   });
 
@@ -379,6 +381,27 @@ export default function ChatPanel() {
     data: sessionDetail,
     isLoading: isLoadingDetail,
   } = useConversationDetail(currentSessionId);
+
+  // ── Breakpoint recovery: auto-reconnect to a RUNNING task ───────
+  const resumedTaskRef = useRef(null);
+
+  useEffect(() => {
+    if (!sessionDetail?.messages?.length) return;
+    const lastMsg = sessionDetail.messages[sessionDetail.messages.length - 1];
+    if (
+      lastMsg?.taskStatus === 'RUNNING'
+      && lastMsg?.taskId
+      && resumedTaskRef.current !== lastMsg.taskId
+    ) {
+      resumedTaskRef.current = lastMsg.taskId;
+      const assistantId = lastMsg.role === 'assistant' ? lastMsg.id : undefined;
+      connectToTaskStream(lastMsg.taskId, assistantId);
+    }
+  }, [sessionDetail, connectToTaskStream]);
+
+  useLayoutEffect(() => {
+    if (!currentSessionId) resumedTaskRef.current = null;
+  }, [currentSessionId]);
 
   const handleSend = useCallback((content) => {
     sendMessage(content, {
