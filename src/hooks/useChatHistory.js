@@ -1,8 +1,6 @@
-import { useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { z } from 'zod';
 import { apiClient } from '@/http/client';
-import { useChatStore } from '@/stores/chatStore';
 import { SessionItemSchema } from '@/schemas/chatSchema';
 
 /**
@@ -17,7 +15,7 @@ import { SessionItemSchema } from '@/schemas/chatSchema';
 export const chatQueryKeys = {
   sessions: ['sessions'],
   /** @param {string} id */
-  sessionDetail: (id) => ['sessions', id],
+  sessionDetail: (id) => ['session-detail', id],
   /** Legacy alias — points to the same key so existing invalidation works. */
   conversations: ['sessions'],
 };
@@ -58,8 +56,13 @@ export const useConversations = useSessions;
 // ---------------------------------------------------------------------------
 
 /**
- * Fetches the full detail for a single session and synchronises
- * the message list into the global `useChatStore`.
+ * Fetches the full detail for a single session.
+ *
+ * **Important:** This hook no longer auto-syncs messages into the Zustand
+ * store.  Message synchronisation is owned exclusively by the guarded
+ * `useEffect` inside `ChatPanel` (keyed by `hasSyncedSessionRef` +
+ * `isHistoricalTrack`), preventing React Query background refetches from
+ * overwriting in-flight streaming state.
  *
  * When `sessionId` is falsy the query is **disabled**.
  *
@@ -67,7 +70,7 @@ export const useConversations = useSessions;
  * @returns {import('@tanstack/react-query').UseQueryResult}
  */
 export function useSessionDetail(sessionId) {
-  const query = useQuery({
+  return useQuery({
     queryKey: chatQueryKeys.sessionDetail(sessionId ?? ''),
     queryFn: async () => {
       const res = await apiClient.get(`/sessions/${sessionId}`);
@@ -75,15 +78,6 @@ export function useSessionDetail(sessionId) {
     },
     enabled: !!sessionId,
   });
-
-  useEffect(() => {
-    if (!query.data?.messages) return;
-    const store = useChatStore.getState();
-    store.setMessages(query.data.messages);
-    store.setHasMore(query.data.hasMore ?? false);
-  }, [query.data]);
-
-  return query;
 }
 
 /** @deprecated Use {@link useSessionDetail} instead. */

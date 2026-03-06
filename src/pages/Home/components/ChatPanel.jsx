@@ -1,5 +1,5 @@
 import {
-  useState, useRef, useCallback, useMemo, memo, useEffect, useLayoutEffect,
+  useState, useRef, useCallback, useMemo, memo, useEffect,
 } from 'react';
 import { motion, AnimatePresence, LayoutGroup } from 'framer-motion';
 import {
@@ -439,7 +439,6 @@ export default function ChatPanel() {
 
   const handleSessionCreated = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: chatQueryKeys.conversations });
-    queryClient.refetchQueries({ queryKey: chatQueryKeys.conversations });
   }, [queryClient]);
 
   const {
@@ -448,30 +447,35 @@ export default function ChatPanel() {
     onSessionCreated: handleSessionCreated,
   });
 
+  const isHistoricalTrack = useChatStore((s) => s.isHistoricalTrack);
+
   const {
     data: sessionDetail,
     isLoading: isLoadingDetail,
-  } = useConversationDetail(currentSessionId);
+  } = useConversationDetail(isHistoricalTrack ? currentSessionId : null);
 
-  // ── Breakpoint recovery: auto-reconnect to a RUNNING task ───────
-  const resumedTaskRef = useRef(null);
+  // ── Smart sync & breakpoint recovery (guarded by session ID lock) ─
+  const hasSyncedSessionRef = useRef(null);
 
   useEffect(() => {
-    if (!sessionDetail?.messages?.length) return;
-    const lastMsg = sessionDetail.messages[sessionDetail.messages.length - 1];
-    if (
-      lastMsg?.taskStatus === 'RUNNING'
-      && lastMsg?.taskId
-      && resumedTaskRef.current !== lastMsg.taskId
-    ) {
-      resumedTaskRef.current = lastMsg.taskId;
-      const assistantId = lastMsg.role === 'assistant' ? lastMsg.id : undefined;
-      connectToTaskStream(lastMsg.taskId, assistantId);
+    if (!sessionDetail?.id || sessionDetail.id === hasSyncedSessionRef.current) return;
+
+    if (useChatStore.getState().isHistoricalTrack) {
+      useChatStore.getState().setMessages(sessionDetail.messages || []);
+      useChatStore.getState().setHasMore(!!sessionDetail.hasMore);
+
+      const lastMsg = sessionDetail.messages?.[sessionDetail.messages.length - 1];
+      if (lastMsg?.taskStatus === 'RUNNING' && lastMsg?.taskId) {
+        const assistantId = lastMsg.role === 'assistant' ? lastMsg.id : undefined;
+        connectToTaskStream(lastMsg.taskId, assistantId);
+      }
     }
+
+    hasSyncedSessionRef.current = sessionDetail.id;
   }, [sessionDetail, connectToTaskStream]);
 
-  useLayoutEffect(() => {
-    if (!currentSessionId) resumedTaskRef.current = null;
+  useEffect(() => {
+    if (!currentSessionId) hasSyncedSessionRef.current = null;
   }, [currentSessionId]);
 
   const handleSend = useCallback((content) => {
