@@ -1,9 +1,9 @@
 import {
-  useState, useRef, useCallback, memo, useEffect, useLayoutEffect,
+  useState, useRef, useCallback, useMemo, memo, useEffect, useLayoutEffect,
 } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, LayoutGroup } from 'framer-motion';
 import {
-  ArrowUp, Square, MessageCircle, Code, FileText, Plus,
+  ArrowUp, Square, MessageCircle, Code, FileText, Plus, Loader2,
 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import LogoSvg from '@/assets/svg/logo.svg';
@@ -357,6 +357,77 @@ const ChatInput = memo(({ onSend, isLoading, onStop }) => {
 ChatInput.displayName = 'ChatInput';
 
 // ---------------------------------------------------------------------------
+// Pending-pool helpers
+// ---------------------------------------------------------------------------
+
+/** @param {import('@/schemas/chatSchema').Message} msg */
+function isPendingAssistant(msg) {
+  return msg.role === 'assistant'
+    && (msg.status === 'streaming' || msg.status === 'pending' || msg.taskStatus === 'RUNNING');
+}
+
+const SNIPPET_LEN = 12;
+
+/**
+ * Walks backward from a pending assistant message to find the user prompt
+ * that triggered it, then returns a truncated snippet.
+ *
+ * @param {import('@/schemas/chatSchema').Message} assistantMsg
+ * @param {import('@/schemas/chatSchema').Message[]} allMessages
+ * @returns {string}
+ */
+function getContextSnippet(assistantMsg, allMessages) {
+  const idx = allMessages.findIndex((m) => m.id === assistantMsg.id);
+  for (let i = idx - 1; i >= 0; i -= 1) {
+    if (allMessages[i].role === 'user' && allMessages[i].content) {
+      const c = allMessages[i].content;
+      return c.length > SNIPPET_LEN ? `${c.slice(0, SNIPPET_LEN)}...` : c;
+    }
+  }
+  return 'Processing...';
+}
+
+// ---------------------------------------------------------------------------
+// PendingPool (horizontal dock above the input)
+// ---------------------------------------------------------------------------
+
+const PendingPool = memo(({ pendingMessages, allMessages }) => (
+  <div className="shrink-0 border-t border-border/30">
+    <div className="mx-auto max-w-3xl px-4 py-2.5">
+      <div
+        className={cn(
+          'flex gap-2.5 overflow-x-auto pb-1',
+          '[&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]',
+        )}
+      >
+        {pendingMessages.map((msg) => (
+          <motion.div
+            key={msg.id}
+            layoutId={`msg-${msg.id}`}
+            initial={{ opacity: 0, scale: 0.92 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ type: 'spring', stiffness: 320, damping: 26 }}
+            className={cn(
+              'flex shrink-0 items-center gap-2.5 rounded-xl px-3.5 py-2.5',
+              'border border-border/50 bg-background/80 backdrop-blur-sm',
+              'shadow-sm min-w-[180px] max-w-[240px]',
+            )}
+          >
+            <Loader2 size={13} className="shrink-0 animate-spin text-primary/60" />
+            <span className="truncate text-xs font-medium text-muted-foreground">
+              Thinking:
+              {' '}
+              {getContextSnippet(msg, allMessages)}
+            </span>
+          </motion.div>
+        ))}
+      </div>
+    </div>
+  </div>
+));
+PendingPool.displayName = 'PendingPool';
+
+// ---------------------------------------------------------------------------
 // ChatPanel
 // ---------------------------------------------------------------------------
 
@@ -413,32 +484,61 @@ export default function ChatPanel() {
   const showSkeleton = isLoadingDetail && !hasMessages;
   const showWelcome = !currentSessionId && !hasMessages && !isLoadingDetail;
 
+  // ── Pending / Settled split for the horizontal dock ────────────
+  const { pendingMessages, settledMessages, showPool } = useMemo(() => {
+    const pending = messages.filter(isPendingAssistant);
+    const show = pending.length > 1;
+    return {
+      pendingMessages: show ? pending : [],
+      settledMessages: show ? messages.filter((m) => !isPendingAssistant(m)) : messages,
+      showPool: show,
+    };
+  }, [messages]);
+
   return (
-    <div className="flex flex-1 flex-col min-w-0 min-h-0 bg-background">
-      {/* ── Chat header ────────────────────────────────────────────── */}
-      {(currentSessionId || hasMessages) && (
-        <div className="flex h-12 shrink-0 items-center border-b border-border/40 px-6">
-          <h3 className="text-[13px] font-medium text-foreground/70 truncate">
-            {sessionDetail?.title || (currentSessionId ? 'Conversation' : 'New Conversation')}
-          </h3>
-        </div>
-      )}
+    <LayoutGroup>
+      <div className="flex flex-1 flex-col min-w-0 min-h-0 bg-background">
+        {/* ── Chat header ──────────────────────────────────────────── */}
+        {(currentSessionId || hasMessages) && (
+          <div className="flex h-12 shrink-0 items-center border-b border-border/40 px-6">
+            <h3 className="text-[13px] font-medium text-foreground/70 truncate">
+              {sessionDetail?.title || (currentSessionId ? 'Conversation' : 'New Conversation')}
+            </h3>
+          </div>
+        )}
 
-      {/* ── Main content area ──────────────────────────────────────── */}
-      {showSkeleton ? (
-        <ChatSkeleton />
-      ) : showWelcome ? (
-        <WelcomeState onSuggestion={handleSend} />
-      ) : (
-        <ChatMain className="flex-1 min-h-0" />
-      )}
+        {/* ── Main content area ────────────────────────────────────── */}
+        {showSkeleton ? (
+          <ChatSkeleton />
+        ) : showWelcome ? (
+          <WelcomeState onSuggestion={handleSend} />
+        ) : (
+          <ChatMain displayMessages={settledMessages} className="flex-1 min-h-0" />
+        )}
 
-      {/* ── Input area ─────────────────────────────────────────────── */}
-      <ChatInput
-        onSend={handleSend}
-        isLoading={isSending}
-        onStop={stopStream}
-      />
-    </div>
+        {/* ── Pending pool (conditional horizontal dock) ───────────── */}
+        <AnimatePresence>
+          {showPool && (
+            <motion.div
+              key="pending-pool"
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+              className="shrink-0 overflow-hidden"
+            >
+              <PendingPool pendingMessages={pendingMessages} allMessages={messages} />
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* ── Input area ───────────────────────────────────────────── */}
+        <ChatInput
+          onSend={handleSend}
+          isLoading={isSending}
+          onStop={stopStream}
+        />
+      </div>
+    </LayoutGroup>
   );
 }
