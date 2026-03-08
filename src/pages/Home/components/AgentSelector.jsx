@@ -68,7 +68,7 @@ export default function AgentSelector() {
   const setSelectedAgentId = useChatStore((s) => s.setSelectedAgentId);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) return undefined;
     const handler = (e) => {
       if (containerRef.current && !containerRef.current.contains(e.target)) {
         setOpen(false);

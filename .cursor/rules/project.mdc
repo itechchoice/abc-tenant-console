@@ -78,8 +78,10 @@ src/
 
 - **`src/pages/`**：每个页面一个文件夹，以 `index.jsx` 作为入口。页面私有的子组件放在该页面文件夹下的 `components/` 中
 - **`src/components/`**：仅存放跨页面复用的通用组件。如果一个组件只有某个页面在用，应放在该页面的 `components/` 中
+- 页面 `index.jsx` 的职责是**组装入口**，不要承担过多局部视图、静态配置、纯工具函数与复杂交互逻辑
 - 页面文件夹内的 `index.css` 仅在 TailwindCSS utility class 无法满足样式需求时才创建，不要为每个页面默认创建 CSS 文件
 - 当一个页面私有组件开始被其他页面引用时，应将其提升到 `src/components/`
+- 所有页面与组件的**文件体量阈值、拆分时机、拆分顺序、禁止薄包装组件**等执行细则，统一遵循 `.cursor/rules/component-splitting.mdc`
 
 ## 重要约定
 

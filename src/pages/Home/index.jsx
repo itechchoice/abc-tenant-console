@@ -2,13 +2,14 @@ import {
   useState, useCallback, useRef, useEffect,
 } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { PanelRightClose, PanelRight, GripVertical } from 'lucide-react';
+import { PanelRightClose, PanelRight } from 'lucide-react';
 import { useChatStore } from '@/stores/chatStore';
 import { useWorkflowRuntimeStore } from '@/stores/workflowRuntimeStore';
 import { WorkflowCanvas } from '@/components/Workflow/WorkflowCanvas';
 import { cn } from '@/lib/utils';
 import ConversationSidebar from './components/ConversationSidebar';
 import ChatPanel from './components/ChatPanel';
+import { WorkflowSplitter } from './components/WorkflowSplitter';
 
 // ---------------------------------------------------------------------------
 // Panel width constraints
@@ -41,49 +42,6 @@ function getInitialWidth() {
   } catch { /* localStorage may be blocked — fall through */ }
   return Math.round(window.innerWidth * DEFAULT_RATIO);
 }
-
-// ---------------------------------------------------------------------------
-// Splitter (drag handle between chat and workflow canvas)
-// ---------------------------------------------------------------------------
-
-/**
- * @param {object} props
- * @param {(e: MouseEvent) => void} props.onMouseDown
- * @param {boolean} props.isDragging
- */
-function Splitter({ onMouseDown, isDragging }) {
-  return (
-    <div
-      role="separator"
-      aria-orientation="vertical"
-      aria-label="Resize workflow panel"
-      onMouseDown={onMouseDown}
-      className={cn(
-        'relative z-50 flex w-1.5 shrink-0 cursor-col-resize items-center justify-center',
-        'select-none transition-colors duration-150',
-        isDragging
-          ? 'bg-primary/25'
-          : 'bg-transparent hover:bg-primary/15',
-      )}
-    >
-      <div
-        className={cn(
-          'flex h-8 w-3.5 items-center justify-center rounded-full',
-          'transition-all duration-150',
-          isDragging
-            ? 'bg-primary/20 text-primary/70 scale-110'
-            : 'text-transparent hover:text-muted-foreground/40',
-        )}
-      >
-        <GripVertical size={10} strokeWidth={2.5} />
-      </div>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Home
-// ---------------------------------------------------------------------------
 
 /**
  * Home — AI Console main workspace.
@@ -207,7 +165,7 @@ function Home() {
             }}
             className="flex shrink-0 overflow-hidden"
           >
-            <Splitter onMouseDown={handleMouseDown} isDragging={isDragging} />
+            <WorkflowSplitter onMouseDown={handleMouseDown} isDragging={isDragging} />
 
             <div className="flex-1 overflow-hidden border-l border-border/40">
               <WorkflowCanvas className="h-full rounded-none border-0" fitViewTrigger={fitViewTrigger} />

@@ -64,7 +64,7 @@ export default function ModelSelector() {
   const setSelectedModel = useChatStore((s) => s.setSelectedModel);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) return undefined;
     const handler = (e) => {
       if (containerRef.current && !containerRef.current.contains(e.target)) {
         setOpen(false);

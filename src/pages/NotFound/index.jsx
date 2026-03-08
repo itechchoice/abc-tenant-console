@@ -94,7 +94,8 @@ function NotFound() {
           </h1>
 
           <p className="mt-5 text-base text-text-secondary leading-relaxed max-w-[46ch]">
-            The page you're looking for may have been removed, renamed, or is temporarily unavailable. Please check the URL.
+            The page you&apos;re looking for may have been removed, renamed, or
+            is temporarily unavailable. Please check the URL.
           </p>
 
           <Link
