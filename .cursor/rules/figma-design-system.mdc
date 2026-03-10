@@ -8,7 +8,7 @@ alwaysApply: false
 
 ## 核心约束
 
-- IMPORTANT: 本项目使用**纯 JSX**（`.jsx`），不使用 TypeScript，**绝不生成 `.tsx` 文件或 TypeScript 类型标注**
+- IMPORTANT: 本项目使用 **TypeScript**（`.tsx` / `.ts`），所有组件和模块必须使用 TypeScript 编写
 - IMPORTANT: 不需要 `import React from 'react'`（React 18 JSX transform 已自动处理）
 - IMPORTANT: 使用 `@` 路径别名（指向 `src/`），例如 `import Button from '@/components/Button'`
 
@@ -23,8 +23,8 @@ alwaysApply: false
 
 ## 组件组织
 
-- 跨页面复用的通用 UI 组件放在 `src/components/`，使用 PascalCase 命名（如 `Button.jsx`、`Card.jsx`）
-- 页面按文件夹组织在 `src/pages/PageName/`，以 `index.jsx` 作为入口
+- 跨页面复用的通用 UI 组件放在 `src/components/`，使用 PascalCase 命名（如 `Button.tsx`、`Card.tsx`）
+- 页面按文件夹组织在 `src/pages/PageName/`，以 `index.tsx` 作为入口
 - 页面私有组件（仅当前页面使用、不通用）放在 `src/pages/PageName/components/` 中
 - 页面文件夹内的 `index.css` 仅在 TailwindCSS 无法满足时才创建
 - 自定义 Hooks 放在 `src/hooks/`
@@ -77,8 +77,7 @@ alwaysApply: false
 ## 组件编写规范
 
 - 使用函数式组件 + Hooks，不使用 class 组件
-- Props 使用解构参数：`function Button({ variant, size, children })`
-- 如需 props 类型校验，使用 `prop-types` 库（非必须，项目 ESLint 已关闭 prop-types 规则）
+- Props 使用 `interface` 定义并用解构参数：`function Button({ variant, size, children }: ButtonProps)`
 - 组件导出使用 `export default`
 - 避免内联样式，除非是真正需要动态计算的值
 
@@ -97,7 +96,7 @@ alwaysApply: false
 | Workflow 画布 | @xyflow/react（React Flow） |
 | SSE 流式通信 | @microsoft/fetch-event-source |
 | 运行时数据校验 | zod |
-| 语言 | 纯 JavaScript + JSX |
+| 语言 | TypeScript + TSX |
 | 包管理 | pnpm |
 | 路径别名 | `@` → `src/` |
 

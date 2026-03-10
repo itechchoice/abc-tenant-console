@@ -1,6 +1,6 @@
 ---
 description: React Flow 复杂节点工作流引擎的性能优化与架构规范
-globs: ["src/components/**/*Node*.jsx", "src/components/**/*Flow*.jsx", "src/pages/**/*Workflow*.jsx"]
+globs: ["src/components/**/*Node*.tsx", "src/components/**/*Flow*.tsx", "src/pages/**/*Workflow*.tsx"]
 ---
 
 # 工作流引擎 (React Flow) 架构与性能规范
@@ -15,7 +15,7 @@ globs: ["src/components/**/*Node*.jsx", "src/components/**/*Flow*.jsx", "src/pag
 
 ### 1. 状态托管 (Zustand 集成)
 - **禁止本地状态**：不要在 `<ReactFlow />` 的父组件中使用 `const [nodes, setNodes] = useState(...)`。
-- **架构模式**：必须在 `src/stores/workflowStore.js` 中创建专门的 Zustand 切片，包含 `nodes`, `edges`, `onNodesChange`, `onEdgesChange`, `onConnect` 等核心状态和方法，严格遵循 React Flow 官方推荐的 Zustand 状态管理模式。
+- **架构模式**：必须在 `src/stores/workflowStore.ts` 中创建专门的 Zustand 切片，包含 `nodes`, `edges`, `onNodesChange`, `onEdgesChange`, `onConnect` 等核心状态和方法，严格遵循 React Flow 官方推荐的 Zustand 状态管理模式。
 
 ### 2. 自定义节点性能防线 (Custom Nodes)
 - **强制 Memo**：所有注册到 `nodeTypes` 的自定义节点组件（Custom Node Components），**必须**被 `React.memo` 包裹。如果不包裹，画布上的任何微小交互（如平移、缩放）都会导致所有节点重新渲染，引发严重的性能灾难。

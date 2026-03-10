@@ -1,0 +1,85 @@
+---
+description: TypeScript 与 Zod 双层类型体系规范
+globs: ["src/**/*.ts", "src/**/*.tsx"]
+---
+
+# TypeScript 与 Zod 类型架构规范
+
+## 核心架构决策 (Architecture Decision)
+
+本项目采用 **TypeScript 严格模式** 提供编译期类型安全，同时保留 **Zod Schema** 作为运行时数据校验层。两者各司其职、互不替代：
+
+- **TypeScript**：编译期类型检查、IDE 智能提示、重构安全网
+- **Zod**：运行时数据校验（远端 API 响应、AI 生成 JSON、SSE 事件 payload）
+
+## 详细约束与 AI Agent 行为准则
+
+### 1. Zod 仍是运行时校验的 SSOT (Single Source of Truth)
+
+- 项目中所有重要的外部数据结构（大模型返回的 JSON、工作流节点配置、复杂的 API 响应），必须在 `src/schemas/` 目录下定义为 Zod Schema
+- 在对大模型返回的文本进行 `JSON.parse` 之后，或者从远端加载复杂配置时，必须立刻调用 `schema.parse()` 或 `schema.safeParse()` 进行运行时校验
+- Zod Schema 同时通过 `z.infer` 导出 TypeScript 类型，避免类型与校验规则分离
+
+### 2. 类型导出规范
+
+Zod Schema 文件中，必须同时导出 Schema 和推导类型：
+
+```typescript
+import { z } from 'zod';
+
+export const ToolCallSchema = z.object({
+  action: z.string(),
+  params: z.record(z.any()),
+});
+
+export type ToolCall = z.infer<typeof ToolCallSchema>;
+```
+
+消费侧直接导入类型，无需任何桥接层：
+
+```typescript
+import { ToolCallSchema, type ToolCall } from '@/schemas/chatSchema';
+
+function processToolCall(data: ToolCall) {
+  console.log(data.action);
+}
+```
+
+### 3. 何时用 Zod，何时用纯 TypeScript 类型
+
+| 场景 | 方案 | 原因 |
+|------|------|------|
+| API 响应数据 | Zod Schema + `z.infer` | 外部数据不可信，需运行时校验 |
+| AI/LLM 生成的 JSON | Zod Schema + `z.infer` | 格式不确定，必须校验 |
+| SSE 事件 payload | Zod Schema + `z.infer` | 协议复杂，需逐事件校验 |
+| 组件 Props | `interface` | 编译期已足够，无需运行时校验 |
+| Store 状态 & Actions | `interface` | 纯前端数据，类型安全由 TS 保证 |
+| 工具函数参数/返回值 | TypeScript 类型标注 | 编译期检查即可 |
+| 纯前端枚举/常量 | `const enum` 或 `as const` | 无需运行时校验 |
+
+### 4. 组件 Props 类型规范
+
+组件 Props 使用 `interface` 定义，与组件放在同一文件中：
+
+```tsx
+interface ChatMessageProps {
+  message: Message;
+  isLast: boolean;
+  onRetry?: () => void;
+}
+
+export function ChatMessage({ message, isLast, onRetry }: ChatMessageProps) {
+  // ...
+}
+```
+
+### 5. shadcn/ui 组件规范
+
+项目已配置 TypeScript，可直接使用 `npx shadcn add <component>` 添加组件。组件存放在 `src/components/ui/` 目录下，保持 shadcn 原始的 TypeScript 代码即可。
+
+### 6. 禁止事项
+
+- **禁止 `any`**：除极少数必须兼容第三方库的场景外，禁止使用 `any`；优先使用 `unknown` + 类型收窄
+- **禁止类型与校验分离**：对于需要 Zod 校验的数据，禁止另外手写一个独立的 `interface`，必须使用 `z.infer` 从 Schema 导出类型
+- **禁止 JSDoc 类型标注**：不再使用 `@typedef`、`@param` 等 JSDoc 类型注释，全部使用 TypeScript 原生类型语法
+- **禁止 `// @ts-ignore`**：如遇类型错误，必须修复根因而非绕过

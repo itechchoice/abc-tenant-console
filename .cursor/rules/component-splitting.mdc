@@ -7,7 +7,7 @@ alwaysApply: true
 
 ## 执行时机
 
-- **前置执行，不是收尾整理**：在生成任何页面、组件、JSX 之前，必须先规划文件边界与组件层级；**禁止**先生成单个巨型文件，再在最后做机械拆分
+- **前置执行，不是收尾整理**：在生成任何页面、组件、TSX 之前，必须先规划文件边界与组件层级；**禁止**先生成单个巨型文件，再在最后做机械拆分
 - 修改旧文件时，若目标文件已超过下方硬阈值，且本次改动会继续增加复杂度，必须先拆分再继续实现功能
 
 ## 核心原则
@@ -19,13 +19,13 @@ alwaysApply: true
 
 ## 行数阈值（硬约束）
 
-- `src/pages/**/index.jsx`
+- `src/pages/**/index.tsx`
   - 目标不超过 **220 行**
   - 超过 **280 行** 必须拆分
-- `src/pages/**/components/*.jsx`
+- `src/pages/**/components/*.tsx`
   - 目标不超过 **260 行**
   - 超过 **360 行** 必须拆分
-- `src/components/**/*.jsx`
+- `src/components/**/*.tsx`
   - 目标不超过 **220 行**
   - 超过 **320 行** 必须拆分
 - 复杂交互容器（如 Canvas、ChatMain、富交互面板、可视化编辑器）
@@ -40,7 +40,7 @@ alwaysApply: true
 - 文件超过对应硬阈值
 - 文件中出现 **3 个及以上** 局部子组件
 - 文件同时包含 **静态常量/配置 + 纯工具函数 + 主组件**
-- 文件同时包含 **数据同步逻辑 + 复杂输入交互 + 大段展示 JSX**
+- 文件同时包含 **数据同步逻辑 + 复杂输入交互 + 大段展示 TSX**
 - 阅读主组件时，需要跨越超过 **2 屏代码** 才能看完主要渲染结构
 
 ## 强制拆分顺序
@@ -92,11 +92,11 @@ alwaysApply: true
 
 ```text
 src/components/Workflow/WorkflowCanvas/
-  index.jsx
-  config.js
-  graph.js
-  FlowViewport.jsx
-  ExecutionTimeline.jsx
+  index.tsx
+  config.ts
+  graph.ts
+  FlowViewport.tsx
+  ExecutionTimeline.tsx
 ```
 
 ## 执行判断标准

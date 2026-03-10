@@ -1,6 +1,6 @@
 ---
 description: LLM 流式通信与复杂 Agent 状态管理的架构规范与唯一最佳实践
-globs: ["src/stores/**/*.js", "src/hooks/**/*.js", "src/components/**", "src/pages/**"]
+globs: ["src/stores/**/*.ts", "src/hooks/**/*.ts", "src/components/**", "src/pages/**"]
 ---
 
 # LLM 流式通信与状态管理架构规范
@@ -35,7 +35,7 @@ globs: ["src/stores/**/*.js", "src/hooks/**/*.js", "src/components/**", "src/pag
 ### 3. 精确的事件路由拦截 (Event Router)
 在 `onmessage` 回调中，必须通过 `switch (ev.event)` 对后端的自定义事件进行精准拦截和分发：
 
-```javascript
+```typescript
 // 标准状态派发路由示例
 switch (ev.event) {
   case 'start':

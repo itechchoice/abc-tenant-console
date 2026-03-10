@@ -10,7 +10,7 @@ globs: ["api/**/*.md"]
 
 ### Step 1: 数据防线 (Zod Schema)
 - 读取 API 文档的 Request/Response 结构。
-- 在 `src/schemas/` 目录下生成对应的 Zod Schema 文件（如 `tenantSchema.js`）。
+- 在 `src/schemas/` 目录下生成对应的 Zod Schema 文件（如 `tenantSchema.ts`），同时通过 `z.infer` 导出 TypeScript 类型。
 
 ### Step 2: 服务端状态 (React Query Hook)
 - 在 `src/hooks/` 目录下创建自定义 Hook，使用 `@tanstack/react-query` 封装 API 请求。
@@ -20,14 +20,14 @@ globs: ["api/**/*.md"]
 - 注意处理 loading 和 error 状态。
 
 ### Step 3: 页面骨架与就近组件拆分 (Page & Local Components)
-- **先规划，再生成**：在编写任何 JSX 之前，必须先规划页面目录结构、`index.jsx` 的组装职责、以及需要拆出的页面私有组件；**禁止**先生成单个巨型页面文件，再在最后机械拆分。
-- 在 `src/pages/` 目录下创建对应的页面级文件夹与 `index.jsx`。
-- 将该页面注册到 `src/router.jsx` 中。
-- **强制就近拆分原则（结构红线）**：禁止将所有代码堆砌在 `index.jsx` 中。必须根据业务模块（如表格区、统计区、筛选表单、操作栏）进行组件拆分。拆分出的专属子组件**必须存放在该页面的 `components/` 目录下**（例如：`src/pages/TenantList/components/TenantTable.jsx`），**绝对禁止将页面专属组件放入全局的 `src/components/` 目录**。只有当组件确实被多个页面复用时，才提升到 `src/components/`。
+- **先规划，再生成**：在编写任何 TSX 之前，必须先规划页面目录结构、`index.tsx` 的组装职责、以及需要拆出的页面私有组件；**禁止**先生成单个巨型页面文件，再在最后机械拆分。
+- 在 `src/pages/` 目录下创建对应的页面级文件夹与 `index.tsx`。
+- 将该页面注册到 `src/router.tsx` 中。
+- **强制就近拆分原则（结构红线）**：禁止将所有代码堆砌在 `index.tsx` 中。必须根据业务模块（如表格区、统计区、筛选表单、操作栏）进行组件拆分。拆分出的专属子组件**必须存放在该页面的 `components/` 目录下**（例如：`src/pages/TenantList/components/TenantTable.tsx`），**绝对禁止将页面专属组件放入全局的 `src/components/` 目录**。只有当组件确实被多个页面复用时，才提升到 `src/components/`。
 - **拆分执行细则强绑定**：Step 3 中所有页面与局部组件的文件体量阈值、拆分触发条件、拆分顺序、以及“禁止薄包装组件”的判断标准，必须严格遵循 `.cursor/rules/component-splitting.mdc`。
 
 ### Step 4: 高级 UI 渲染 (⚠️核心架构与设计绑定点)
-在开始编写任何 JSX 和 Tailwind 样式之前，你**必须强制执行**以下操作：
+在开始编写任何 TSX 和 Tailwind 样式之前，你**必须强制执行**以下操作：
 
 1. **唤醒顶级前端专家角色**：静默读取并严格遵循以下 5 个核心 Skill 规范：
    - `.agents/skills/design-taste-frontend/SKILL.md` (前端审美与留白)
@@ -37,11 +37,11 @@ globs: ["api/**/*.md"]
    - `.agents/skills/vercel-react-best-practices/SKILL.md` (React 渲染与性能调优最佳实践)
 
 2. **UI 组装约束**：
-   - 页面 `index.jsx` 作为组装入口，负责引入 Step 3 中拆分到当前页面 `components/` 目录下的各专属子组件进行组合，以及从 `src/components/ui/` 引入通用基础组件。
+   - 页面 `index.tsx` 作为组装入口，负责引入 Step 3 中拆分到当前页面 `components/` 目录下的各专属子组件进行组合，以及从 `src/components/ui/` 引入通用基础组件。
    - 必须基于上述 Skill 中的 Tailwind 最佳实践、色彩层级（Color Hierarchy）进行渲染。
    - 必须遵循 Vercel 架构规范中的组合模式（Composition），避免传递过多的 boolean props，优先使用 `children`。
    - 确保组件拆分合理，避免巨型组件；若文件体量接近或超过阈值，必须优先继续拆分，而不是在原文件上堆叠功能；并在适当时机使用 `React.memo` 阻断重渲染。
 
 3. **生成式 UI 联动**：如果页面涉及复杂的对话框或大模型输出卡片，必须额外遵循 `.cursor/rules/architecture-generative-ui.mdc` 以复用现有资产。
 
-4. **静默翻译指令 (English-Only UI)**：即使输入的 API Markdown 文档（字段名、业务场景描述）是中文的，生成 JSX 代码时**必须自动将所有展示在 UI 上的文本翻译为专业、地道的英文**（例如："提交" → "Submit"、"搜索" → "Search"、"暂无数据" → "No data available"）。**生成的代码中绝对不能包含中文。**
+4. **静默翻译指令 (English-Only UI)**：即使输入的 API Markdown 文档（字段名、业务场景描述）是中文的，生成 TSX 代码时**必须自动将所有展示在 UI 上的文本翻译为专业、地道的英文**（例如："提交" → "Submit"、"搜索" → "Search"、"暂无数据" → "No data available"）。**生成的代码中绝对不能包含中文。**

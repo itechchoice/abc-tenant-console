@@ -24,40 +24,42 @@ globs: ["src/components/**", "src/pages/**"]
 ### 2. Client Interaction (客户端交互打断)
 当大模型需要用户提供信息或做选择时，SSE 连接会被后端主动中断，并下发结构化的表单组件数据（如按钮组、输入框等）：
 - **拦截机制**：Store 接收到 `client_interaction` 事件，向 `messages` 数组推入一条 `type: 'interaction'` 的交互消息。
-- **UI 呈现**：动态渲染 `DynamicInteractionForm` 组件。该组件需根据下发的 `widgets` 数组（如 `button_group`, `input`），动态组装纯 JSX 表单。
+- **UI 呈现**：动态渲染 `DynamicInteractionForm` 组件。该组件需根据下发的 `widgets` 数组（如 `button_group`, `input`），动态组装表单。
 - **提交流程**：用户在动态表单中点击提交后，前端通过 Zustand Store 的方法重新发起请求，将用户的输入作为 `toolResults` 回传给后端，从而恢复对话流。
 
 ## 代码实现规范与约束
 
 ### 组件分发器 (Message Dispatcher) 示例
-在 `ChatMain.jsx` 的消息列表渲染中，必须严格按照 `msg.type` 进行路由分发，严禁将所有逻辑揉杂在一个巨型组件中：
+在 `ChatMain.tsx` 的消息列表渲染中，必须严格按照 `msg.type` 进行路由分发，严禁将所有逻辑揉杂在一个巨型组件中：
 
-```jsx
-// src/components/ChatMain/MessageList.jsx
+```tsx
+// src/components/ChatMain/MessageList.tsx
 import MarkdownMessage from './MarkdownMessage';
 import ToolCallCard from '../GenerativeUI/ToolCallCard';
 import InteractionForm from '../GenerativeUI/InteractionForm';
+import type { Message } from '@/schemas/chatSchema';
 
-export default function MessageList({ messages }) {
+interface MessageListProps {
+  messages: Message[];
+}
+
+export default function MessageList({ messages }: MessageListProps) {
   return (
     <div className="flex flex-col gap-4">
       {messages.map((msg) => {
-        // 1. 渲染标准 Markdown 文本
         if (msg.type === 'text') {
           return <MarkdownMessage key={msg.id} content={msg.content} />;
         }
         
-        // 2. 渲染工具调用过程卡片 (Generative UI)
         if (msg.type === 'tool_call') {
           return <ToolCallCard key={msg.id} toolName={msg.toolName} args={msg.args} status={msg.status} />;
         }
         
-        // 3. 渲染用户交互表单 (打断与恢复)
         if (msg.type === 'interaction') {
           return <InteractionForm key={msg.id} interactionData={msg.interaction} toolCallId={msg.toolCallId} />;
         }
         
-        return null; // 兜底容错
+        return null;
       })}
     </div>
   );

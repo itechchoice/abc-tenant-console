@@ -1,6 +1,6 @@
 ---
 description: Zustand 全局状态与 TanStack Query 服务端缓存的架构边界规范
-globs: ["src/stores/**/*.js", "src/hooks/**/*.js", "src/components/**/*.jsx", "src/pages/**/*.jsx"]
+globs: ["src/stores/**/*.ts", "src/hooks/**/*.ts", "src/components/**/*.tsx", "src/pages/**/*.tsx"]
 ---
 
 # 状态管理与数据拉取架构规范

@@ -81,8 +81,8 @@
 
 `src/hooks/useChatHistory.js` 使用 `@tanstack/react-query` 封装历史会话的读取：
 
-- `useConversations()` — 拉取会话列表（驱动侧边栏）
-- `useConversationDetail(sessionId)` — 加载单次会话详情，自动同步到 Zustand Store（`setMessages`）
+- `useSessions()` — 拉取会话列表（驱动侧边栏）
+- `useSessionDetail(sessionId)` — 加载单次会话详情，自动同步到 Zustand Store（`setMessages`）
 
 所有常规 REST 请求统一通过 `apiClient`（`src/http/client.js`，基于 axios 封装，含 Token 注入 + 401 拦截）发出。
 
