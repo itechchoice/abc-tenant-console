@@ -7,7 +7,7 @@ import {
 import { Loader2 } from 'lucide-react';
 import { useChatStore } from '@/stores/chatStore';
 import { useWorkflowRuntimeStore } from '@/stores/workflowRuntimeStore';
-import { apiClient } from '@/http/client';
+import { fetchOlderMessages } from '@/http/chatApi';
 import { cn } from '@/lib/utils';
 import { MessageRow } from './MessageRow';
 import { TypingIndicator } from './TypingIndicator';
@@ -69,13 +69,10 @@ export function ChatMain({ className, onInteractionSubmit }: ChatMainProps) {
 
     try {
       const firstMsgId = currentMessages[0].id;
-      const res = await apiClient.get(`/sessions/${currentSessionId}`, {
-        params: { before: firstMsgId },
-      });
-      const data = res?.data ?? res;
-      const olderMessages = data?.messages ?? [];
+      const result = await fetchOlderMessages(currentSessionId, firstMsgId);
 
-      setHasMore(data?.hasMore ?? false);
+      setHasMore(result.hasMore);
+      const olderMessages = result.messages;
 
       if (olderMessages.length > 0) {
         const container = scrollContainerRef.current;

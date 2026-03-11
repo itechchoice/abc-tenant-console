@@ -9,9 +9,7 @@ import {
   Search,
   X,
 } from 'lucide-react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useSessions, chatQueryKeys } from '@/hooks/useChatHistory';
-import { apiClient } from '@/http/client';
+import { useSessions, useDeleteSession, useRenameSession } from '@/hooks/useChatHistory';
 import { cn } from '@/lib/utils';
 import { useChatStore } from '@/stores/chatStore';
 import { useWorkflowRuntimeStore } from '@/stores/workflowRuntimeStore';
@@ -28,18 +26,14 @@ const listVariants = {
 
 export default function ConversationSidebar() {
   const [search, setSearch] = useState('');
-  const { data: conversations = [], isLoading } = useSessions();
+  const { data: sessionsData, isLoading } = useSessions({ size: 100 });
+  const conversations = sessionsData?.items ?? [];
   const currentSessionId = useChatStore((s) => s.currentSessionId);
   const clearChat = useChatStore((s) => s.clearChat);
   const setCurrentSessionId = useChatStore((s) => s.setCurrentSessionId);
-  const queryClient = useQueryClient();
 
-  const deleteMutation = useMutation({
-    mutationFn: (id: string) => apiClient.delete(`/sessions/${id}`),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: chatQueryKeys.sessions });
-    },
-  });
+  const deleteMutation = useDeleteSession();
+  const renameMutation = useRenameSession();
 
   const handleNewChat = useCallback(() => {
     clearChat();
@@ -62,6 +56,10 @@ export default function ConversationSidebar() {
       useWorkflowRuntimeStore.getState().resetRuntime();
     }
   }, [deleteMutation, clearChat]);
+
+  const handleRename = useCallback((id: string, title: string) => {
+    renameMutation.mutate({ id, title });
+  }, [renameMutation]);
 
   const filtered = useMemo(() => {
     if (!search.trim()) return conversations;
@@ -151,6 +149,7 @@ export default function ConversationSidebar() {
                     isActive={conversation.id === currentSessionId}
                     onSelect={handleSelect}
                     onDelete={handleDelete}
+                    onRename={handleRename}
                   />
                 ))}
               </motion.div>

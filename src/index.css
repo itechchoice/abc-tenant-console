@@ -1,5 +1,6 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap');
 @import "tailwindcss";
+@source "../node_modules/@itechchoice/mcp-fe-shared/dist";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
@@ -136,4 +137,11 @@
   body {
     @apply bg-background text-foreground;
   }
+}
+
+.monaco-editor .code-editor-readonly-line {
+  background-color: rgba(255, 100, 100, 0.15);
+}
+.vs-dark .monaco-editor .code-editor-readonly-line {
+  background-color: rgba(255, 100, 100, 0.25);
 }

@@ -1,9 +1,7 @@
 import { useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { z } from 'zod';
-import { apiClient } from '@/http/client';
+import { fetchAssignedProviders } from '@/http/modelApi';
 import { useChatStore } from '@/stores/chatStore';
-import { AssignedProviderSchema } from '@/schemas/modelSchema';
 import type { AssignedProvider } from '@/schemas/modelSchema';
 
 export const modelQueryKeys = {
@@ -13,16 +11,7 @@ export const modelQueryKeys = {
 export function useAssignedModels() {
   const query = useQuery<AssignedProvider[]>({
     queryKey: [...modelQueryKeys.assignedProviders],
-    queryFn: async () => {
-      const res = await apiClient.get('/models/providers/assigned') as unknown;
-      const raw = Array.isArray(res) ? res : ((res as { data?: unknown })?.data ?? []);
-      try {
-        return z.array(AssignedProviderSchema).parse(raw);
-      } catch (err) {
-        console.warn('[useAssignedModels] Zod validation fell through:', err);
-        return raw as AssignedProvider[];
-      }
-    },
+    queryFn: fetchAssignedProviders,
   });
 
   useEffect(() => {

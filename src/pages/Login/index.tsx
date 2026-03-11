@@ -2,8 +2,7 @@ import { useState, useCallback } from 'react';
 import { useNavigate, Navigate } from 'react-router-dom';
 import {
   Lock,
-  User,
-  Building2,
+  Mail,
   Eye,
   EyeOff,
   ArrowRight,
@@ -13,9 +12,8 @@ import { useLogin } from '@/hooks/useLogin';
 import { useAuthStore } from '@/stores/authStore';
 
 interface LoginForm {
-  username: string;
+  email: string;
   password: string;
-  tenantId: string;
 }
 
 const GRID_BG = [
@@ -34,7 +32,7 @@ const INPUT_CLASS = [
 function Login() {
   const navigate = useNavigate();
   const token = useAuthStore((s) => s.token);
-  const [form, setForm] = useState<LoginForm>({ username: '', password: '', tenantId: '' });
+  const [form, setForm] = useState<LoginForm>({ email: '', password: '' });
   const [showPassword, setShowPassword] = useState(false);
   const {
     mutate: login, isPending, error, isError,
@@ -49,7 +47,12 @@ function Login() {
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    login(form, {
+    const payload = {
+      email: form.email.trim(),
+      password: form.password,
+    };
+
+    login(payload, {
       onSuccess: () => navigate('/', { replace: true }),
     });
   };
@@ -58,7 +61,7 @@ function Login() {
     ? error?.message || 'Login failed. Please check your credentials.'
     : null;
 
-  const canSubmit = form.username && form.password && form.tenantId;
+  const canSubmit = form.email.trim() && form.password.trim();
 
   return (
     <div className="min-h-dvh flex bg-white">
@@ -112,47 +115,24 @@ function Login() {
           ) : null}
 
           <form onSubmit={handleSubmit} className="mt-8 space-y-5">
-            {/* Tenant ID */}
+            {/* Email */}
             <fieldset className="space-y-1.5">
-              <label htmlFor="login-tenant" className="block text-[13px] font-medium text-zinc-700">
-                Tenant ID
+              <label htmlFor="login-email" className="block text-[13px] font-medium text-zinc-700">
+                Email
               </label>
               <div className="relative">
-                <Building2
+                <Mail
                   className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-zinc-400"
                   strokeWidth={1.5}
                 />
                 <input
-                  id="login-tenant"
-                  type="text"
-                  name="tenantId"
-                  value={form.tenantId}
+                  id="login-email"
+                  type="email"
+                  name="email"
+                  value={form.email}
                   onChange={handleChange}
-                  placeholder="tnt_xyz456"
-                  autoComplete="organization"
-                  className={INPUT_CLASS}
-                />
-              </div>
-            </fieldset>
-
-            {/* Username */}
-            <fieldset className="space-y-1.5">
-              <label htmlFor="login-username" className="block text-[13px] font-medium text-zinc-700">
-                Username
-              </label>
-              <div className="relative">
-                <User
-                  className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-zinc-400"
-                  strokeWidth={1.5}
-                />
-                <input
-                  id="login-username"
-                  type="text"
-                  name="username"
-                  value={form.username}
-                  onChange={handleChange}
-                  placeholder="admin"
-                  autoComplete="username"
+                  placeholder="admin@abc.local"
+                  autoComplete="email"
                   className={INPUT_CLASS}
                 />
               </div>

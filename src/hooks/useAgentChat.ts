@@ -3,7 +3,8 @@ import { fetchEventSource } from '@microsoft/fetch-event-source';
 import { useAuthStore } from '@/stores/authStore';
 import { useChatStore } from '@/stores/chatStore';
 import { useWorkflowRuntimeStore } from '@/stores/workflowRuntimeStore';
-import { apiClient } from '@/http/client';
+import { createRequestId } from '@/http/client';
+import { createTask, cancelTask } from '@/http/taskApi';
 import type { Message } from '@/schemas/chatSchema';
 
 // ---------------------------------------------------------------------------
@@ -17,6 +18,7 @@ export interface UseAgentChatOptions {
 interface SendMessageMeta {
   agentId?: string;
   sessionId?: string;
+  capabilities?: string[];
   extra?: Record<string, unknown>;
   [key: string]: unknown;
 }
@@ -44,6 +46,7 @@ function getSSEHeaders(): Record<string, string> {
   return {
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...(userInfo?.tenantId ? { 'X-Tenant-Id': userInfo.tenantId } : {}),
+    'X-Request-Id': createRequestId(),
   };
 }
 
@@ -55,6 +58,7 @@ interface BuildSSEHandlersCtx {
   assistantMessageId: string;
   onSessionCreatedRef: MutableRefObject<((sessionId: string) => void) | undefined>;
   controllerRef: MutableRefObject<AbortController | null>;
+  activeTaskIdRef: MutableRefObject<string | null>;
   initialContent?: string;
 }
 
@@ -62,6 +66,7 @@ function buildSSEHandlers({
   assistantMessageId,
   onSessionCreatedRef,
   controllerRef,
+  activeTaskIdRef,
   initialContent = '',
 }: BuildSSEHandlersCtx) {
   let streamedContent = initialContent;
@@ -148,6 +153,7 @@ function buildSSEHandlers({
             onSessionCreatedRef.current?.(newSid);
           }
           if (initTaskId) {
+            activeTaskIdRef.current = initTaskId;
             setWorkflowState({
               activeTaskId: initTaskId,
               workflowStatus: 'running',
@@ -181,21 +187,10 @@ function buildSSEHandlers({
         case 'TOKEN_STREAM':
         case 'TEXT_CHUNK':
         case 'LLM_CHUNK': {
-          let text = '';
-          const raw = (payload as { payload?: unknown }).payload;
-
-          if (typeof raw === 'string' && raw.startsWith('{')) {
-            try {
-              const inner = JSON.parse(raw) as { content?: string };
-              text = inner.content || '';
-            } catch {
-              console.warn('[useAgentChat] Failed to parse inner payload:', raw);
-            }
-          } else {
-            const r = raw as { content?: string } | string | undefined;
-            const p = payload as { content?: string; data?: { text?: string } };
-            text = (typeof r === 'object' ? r?.content : r) ?? p.content ?? p.data?.text ?? '';
-          }
+          const d = payload.data as { text?: string } | undefined;
+          const text = d?.text
+            ?? (payload as { content?: string }).content
+            ?? '';
 
           if (text) {
             ensureResponseStep(chatMode);
@@ -210,6 +205,7 @@ function buildSSEHandlers({
 
         case 'TASK_CREATED': {
           const taskId = (payload.taskId ?? payload.id ?? null) as string | null;
+          if (taskId) activeTaskIdRef.current = taskId;
           setWorkflowState({
             activeTaskId: taskId,
             workflowStatus: 'running',
@@ -270,6 +266,7 @@ function buildSSEHandlers({
           updateMessage(assistantMessageId, { status: 'completed' });
           setTyping(false);
           setWorkflowState({ workflowStatus: 'completed', activeStepName: null });
+          activeTaskIdRef.current = null;
           runtime.finishExecution('completed');
           break;
         }
@@ -339,6 +336,65 @@ function buildSSEHandlers({
             }],
             metadata: { type: 'tool_call' },
           });
+          break;
+        }
+
+        case 'TOOL_RESULT': {
+          const src = (payload.data ?? payload) as {
+            id?: string;
+            toolName?: string;
+            name?: string;
+            result?: unknown;
+          };
+          const toolId = src.id;
+          if (toolId) {
+            const existingTool = useChatStore.getState().messages.find((m: Message) => m.id === toolId);
+            if (existingTool) {
+              updateMessage(toolId, {
+                status: 'completed',
+                toolCalls: existingTool.toolCalls?.map((tc) =>
+                  tc.id === toolId ? { ...tc, result: src.result, status: 'completed' as const } : tc,
+                ),
+              });
+            }
+          }
+          break;
+        }
+
+        case 'TASK_SUSPENDED': {
+          updateMessage(assistantMessageId, { status: 'pending' });
+          setTyping(false);
+          setWorkflowState({ workflowStatus: 'running', activeStepName: 'suspended' });
+          runtime.recordStep({
+            stepId: `${runtime.taskId || assistantMessageId}-suspended`,
+            stepName: 'TASK_SUSPENDED',
+            title: 'Task suspended',
+            detail: 'The task is waiting for approval or human input.',
+            nodeKey: runtime.currentNodeKey || (chatMode === 'model' ? 'response' : 'respond'),
+            kind: 'system',
+            status: 'running',
+            messageId: assistantMessageId,
+            chatMode,
+          });
+          break;
+        }
+
+        case 'TASK_CANCELLED': {
+          updateMessage(assistantMessageId, { status: 'error', content: 'Task was cancelled.' });
+          setTyping(false);
+          setWorkflowState({ workflowStatus: 'completed', activeStepName: null });
+          runtime.recordStep({
+            stepId: `${runtime.taskId || assistantMessageId}-cancelled`,
+            stepName: 'TASK_CANCELLED',
+            title: 'Task cancelled',
+            detail: 'The task was cancelled.',
+            nodeKey: runtime.currentNodeKey || (chatMode === 'model' ? 'response' : 'respond'),
+            kind: 'system',
+            status: 'failed',
+            messageId: assistantMessageId,
+            chatMode,
+          });
+          runtime.finishExecution('failed');
           break;
         }
 
@@ -465,6 +521,7 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
   const { onSessionCreated } = options;
 
   const controllerRef = useRef<AbortController | null>(null);
+  const activeTaskIdRef = useRef<string | null>(null);
   const onSessionCreatedRef = useRef(onSessionCreated);
   onSessionCreatedRef.current = onSessionCreated;
 
@@ -472,6 +529,7 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
 
   const connectToTaskStream = useCallback(
     async (taskId: string, existingAssistantMessageId?: string) => {
+      activeTaskIdRef.current = taskId;
       useWorkflowRuntimeStore.getState().startExecution({
         taskId,
         chatMode: useChatStore.getState().chatMode,
@@ -503,6 +561,7 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
         assistantMessageId,
         onSessionCreatedRef,
         controllerRef,
+        activeTaskIdRef,
         initialContent,
       });
 
@@ -581,11 +640,13 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
         if (sessionId) reqPayload.sessionId = sessionId;
         if (chatMode === 'agent') reqPayload.agentId = selectedAgentId;
         if (chatMode === 'model') reqPayload.modelId = selectedModel!.id;
+        if (metadata.capabilities?.length) reqPayload.capabilities = metadata.capabilities;
 
         const sseHandlers = buildSSEHandlers({
           assistantMessageId,
           onSessionCreatedRef,
           controllerRef,
+          activeTaskIdRef,
         });
 
         try {
@@ -606,12 +667,12 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
       const taskPayload: Record<string, unknown> = { message: content, sessionId };
       if (chatMode === 'agent') taskPayload.agentId = selectedAgentId;
       if (chatMode === 'model') taskPayload.modelId = selectedModel!.id;
+      if (metadata.capabilities?.length) taskPayload.capabilities = metadata.capabilities;
 
       let taskId: string;
       try {
-        const res = await apiClient.post(TASKS_ENDPOINT, taskPayload) as { data?: { taskId?: string }; taskId?: string };
-        taskId = res?.data?.taskId ?? res?.taskId ?? '';
-        if (!taskId) throw new Error('Missing taskId in POST /tasks response');
+        const taskRes = await createTask(taskPayload);
+        taskId = taskRes.taskId;
       } catch (taskErr) {
         if ((taskErr as Error)?.name === 'AbortError') return;
         console.error('[useAgentChat] POST /tasks failed:', taskErr);
@@ -623,10 +684,12 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
         return;
       }
 
+      activeTaskIdRef.current = taskId;
       const sseHandlers = buildSSEHandlers({
         assistantMessageId,
         onSessionCreatedRef,
         controllerRef,
+        activeTaskIdRef,
       });
 
       try {
@@ -645,9 +708,17 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
   );
 
   const stopStream = useCallback(() => {
+    const taskId = activeTaskIdRef.current;
     controllerRef.current?.abort();
     controllerRef.current = null;
+    activeTaskIdRef.current = null;
     useChatStore.getState().setTyping(false);
+
+    if (taskId) {
+      cancelTask(taskId).catch((err) => {
+        console.warn('[useAgentChat] POST /tasks/cancel failed (non-critical):', err);
+      });
+    }
   }, []);
 
   const isLoading = useChatStore((s) => s.isTyping);

@@ -35,6 +35,16 @@ export default defineConfig(({ mode }) => {
       alias: {
         '@': '/src',
       },
+      dedupe: [
+        'react', 'react-dom', 'react/jsx-runtime',
+        'zustand', '@xyflow/react', 'lucide-react',
+        'sonner', 'radix-ui', 'class-variance-authority',
+        'nanoid', 'clsx', 'tailwind-merge',
+        'react-markdown', 'remark-gfm',
+        'react-syntax-highlighter',
+        'react-easy-crop', 'dayjs', 'lodash',
+        'framer-motion',
+      ],
     },
     server: {
       // 配置本地开发服务器代理

@@ -82,6 +82,8 @@ export const MessageSchema = z.object({
   status: MessageStatusSchema,
   toolCalls: z.array(ToolCallSchema).optional(),
   metadata: z.record(z.string(), z.any()).optional(),
+  taskId: z.string().optional(),
+  taskStatus: z.string().optional(),
 });
 
 // ---------------------------------------------------------------------------
@@ -93,6 +95,59 @@ export type MessageStatus = z.infer<typeof MessageStatusSchema>;
 export type ToolCallStatus = z.infer<typeof ToolCallStatusSchema>;
 export type ToolCall = z.infer<typeof ToolCallSchema>;
 export type Message = z.infer<typeof MessageSchema>;
+
+// ---------------------------------------------------------------------------
+// Server MessageRecord (ENGINE_API format)
+// ---------------------------------------------------------------------------
+
+/**
+ * Raw message shape returned by `GET /sessions/{id}`.
+ * Fields map to the ENGINE_API `MessageRecord` definition.
+ */
+export interface ServerMessageRecord {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string | null;
+  taskId: string;
+  taskStatus: 'CREATED' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'SUSPENDED';
+  createdAt: string;
+}
+
+/**
+ * Derives a front-end `MessageStatus` from the server-side `taskStatus`.
+ */
+function taskStatusToMessageStatus(taskStatus: string, role: string): MessageStatus {
+  if (role === 'user') return 'completed';
+  switch (taskStatus) {
+    case 'CREATED':
+    case 'RUNNING':
+      return 'streaming';
+    case 'COMPLETED':
+      return 'completed';
+    case 'FAILED':
+      return 'error';
+    case 'SUSPENDED':
+      return 'pending';
+    default:
+      return 'completed';
+  }
+}
+
+/**
+ * Converts an array of server `MessageRecord` objects into the local `Message`
+ * shape used by the Zustand store and React components.
+ */
+export function normalizeServerMessages(records: ServerMessageRecord[]): Message[] {
+  return records.map((rec) => ({
+    id: rec.id,
+    role: rec.role,
+    content: rec.content ?? '',
+    timestamp: new Date(rec.createdAt).getTime(),
+    status: taskStatusToMessageStatus(rec.taskStatus, rec.role),
+    taskId: rec.taskId,
+    taskStatus: rec.taskStatus,
+  }));
+}
 
 // ---------------------------------------------------------------------------
 // Session Schemas (ENGINE_API: GET /sessions, GET /sessions/{id})

@@ -18,13 +18,23 @@ POST /sessions
 }
 ```
 
-创建会话并提交第一条消息：
+创建会话并提交第一条消息（Agent 模式）：
 
 ```json
 {
   "title": "销售数据分析",
   "agentId": "agent_abc123",
   "message": "帮我分析一下今天的销售数据"
+}
+```
+
+创建会话并执行工作流：
+
+```json
+{
+  "title": "客服邮件处理",
+  "message": "帮我处理今天的客服邮件",
+  "capabilities": ["workflow:wf_a1b2c3d4e5f6"]
 }
 ```
 
@@ -37,8 +47,9 @@ POST /sessions
 |body|body|object| 是 |none|
 | title|body|string| 否 |会话标题，默认 "New Session"|
 | agentId|body|string| 否 |智能体ID，传 message 时生效|
-| modelId|body|string| 否 |模型ID，传 message 且无 agentId 时生效|
+| modelId|body|string| 否 |模型ID，传 message 时生效（详见 `POST /tasks` 说明）|
 | message|body|string| 否 |用户消息，传则同时创建任务|
+| capabilities|body|string[]| 否 |能力范围，传 message 时生效（详见 `POST /tasks` 说明）|
 
 > 返回示例
 
@@ -95,6 +106,8 @@ GET /sessions
 |agentId|query|string| 否 |按智能体ID过滤|
 |userId|query|string| 否 |按用户ID过滤|
 |keyword|query|string| 否 |按标题关键词搜索|
+|page|query|integer| 否 |页码，默认 1|
+|size|query|integer| 否 |每页条数，默认 20，最大 100|
 
 > 返回示例
 
@@ -103,30 +116,35 @@ GET /sessions
 ```json
 {
   "code": 0,
-  "data": [
-    {
-      "id": "session_abc123",
-      "tenantId": "tenant_abc123",
-      "agentId": "agent_abc123",
-      "userId": "user_abc123",
-      "title": "销售数据分析会话",
-      "status": "active",
-      "lastMessageAt": "2026-03-05T10:30:00Z",
-      "createdAt": "2026-03-05T10:30:00Z",
-      "updatedAt": "2026-03-05T10:30:00Z"
-    },
-    {
-      "id": "session_def456",
-      "tenantId": "tenant_abc123",
-      "agentId": "agent_abc123",
-      "userId": "user_abc123",
-      "title": "技术问题咨询",
-      "status": "active",
-      "lastMessageAt": "2026-03-04T16:00:00Z",
-      "createdAt": "2026-03-04T14:00:00Z",
-      "updatedAt": "2026-03-04T16:00:00Z"
-    }
-  ]
+  "data": {
+    "items": [
+      {
+        "id": "session_abc123",
+        "tenantId": "tenant_abc123",
+        "agentId": "agent_abc123",
+        "userId": "user_abc123",
+        "title": "销售数据分析会话",
+        "status": "active",
+        "lastMessageAt": "2026-03-05T10:30:00Z",
+        "createdAt": "2026-03-05T10:30:00Z",
+        "updatedAt": "2026-03-05T10:30:00Z"
+      },
+      {
+        "id": "session_def456",
+        "tenantId": "tenant_abc123",
+        "agentId": "agent_abc123",
+        "userId": "user_abc123",
+        "title": "技术问题咨询",
+        "status": "active",
+        "lastMessageAt": "2026-03-04T16:00:00Z",
+        "createdAt": "2026-03-04T14:00:00Z",
+        "updatedAt": "2026-03-04T16:00:00Z"
+      }
+    ],
+    "total": 42,
+    "page": 1,
+    "size": 20
+  }
 }
 ```
 
@@ -143,7 +161,11 @@ GET /sessions
 |名称|类型|必选|约束|中文名|说明|
 |---|---|---|---|---|---|
 | code|integer|true|none||状态码|
-| data|[[SessionEntity](#schemasessionentity)]|true|none||会话列表，按最后消息时间倒序|
+| data|object|true|none||none|
+| items|[[SessionEntity](#schemasessionentity)]|true|none||会话列表，按创建时间倒序|
+| total|integer|true|none||符合条件的总数|
+| page|integer|true|none||当前页码|
+| size|integer|true|none||每页条数|
 
 ## GET 查询会话详情
 
@@ -406,43 +428,32 @@ DELETE /sessions/{id}
 
 POST /tasks
 
-支持三种执行模式：
+两种模式：传 `agentId` 走 **Agent 模式**，不传走**普通模式**。`modelId` 和 `capabilities` 两个参数在两种模式下都可用。
 
-| 模式 | 条件 | 行为 |
-|------|------|------|
-| **Agent** | 传 `agentId` | 完整编排流程（Compiler → Runtime），支持工具调用 |
-| **模型直连** | 传 `modelId`，不传 `agentId` | 跳过编排，直接调用 LLM Gateway 聊天 |
-| **Auto** | 两个都不传 | LLM Gateway 路由规则自动选择模型池 |
+| | Agent 模式 | 普通模式 |
+|---|---|---|
+| **modelId** | 覆盖 Agent 默认模型 | 指定模型（不传则自动路由） |
+| **capabilities** | 与 Agent 自带工具合并 | 指定可用工具；可传 `workflow:<id>` 执行工作流；不传则纯聊天 |
+
+`capabilities` 格式：`"*"` 所有可用能力（工具、工作流、skill 等） / `"github:*"` 某 Server 全部工具 / `"notion:search"` 具体工具 / `"code_review"` 技能 / `"workflow:wf_xxx"` 指定工作流。
 
 > Body 请求参数
 
-Agent 模式：
-
 ```json
-{
-  "agentId": "agent_abc123",
-  "sessionId": "session_abc123",
-  "message": "帮我分析一下今天的销售数据"
-}
-```
+// Agent 模式
+{ "agentId": "agent_abc123", "message": "帮我分析一下今天的销售数据" }
 
-模型直连模式：
+// Agent 模式 + 覆盖模型 + 追加工具
+{ "agentId": "agent_abc123", "modelId": "gpt-4o", "message": "查一下最近的 issue", "capabilities": ["github:*"] }
 
-```json
-{
-  "modelId": "gpt-4o",
-  "sessionId": "session_abc123",
-  "message": "1+1等于几？"
-}
-```
+// 普通模式 — 执行工作流
+{ "message": "帮我处理今天的客服邮件", "capabilities": ["workflow:wf_a1b2c3d4e5f6"] }
 
-Auto 模式：
+// 普通模式 — 带工具聊天
+{ "modelId": "gpt-4o", "message": "搜索一下产品文档", "capabilities": ["notion:search", "github:search_code"] }
 
-```json
-{
-  "sessionId": "session_abc123",
-  "message": "你好，请介绍一下你自己"
-}
+// 普通模式 — 纯聊天
+{ "message": "你好" }
 ```
 
 ### 请求参数
@@ -452,9 +463,10 @@ Auto 模式：
 |X-Tenant-Id|header|string| 是 |租户ID|
 |body|body|[CreateTaskRequest](#schemacreatetaskrequest)| 是 |none|
 | agentId|body|string| 否 |智能体ID，传则走 Agent 模式|
-| modelId|body|string| 否 |模型ID，agentId 为空时生效（模型直连模式）；两者都不传则走 Auto 模式|
-| sessionId|body|string| 是 |会话ID|
+| modelId|body|string| 否 |模型ID|
+| sessionId|body|string| 否 |会话ID；不传时自动创建|
 | message|body|string| 是 |用户消息|
+| capabilities|body|string[]| 否 |能力范围（格式见上）|
 
 > 返回示例
 
@@ -500,6 +512,7 @@ GET /tasks
 |X-Tenant-Id|header|string| 否 |租户ID，默认 tenant_default|
 |sessionId|query|string| 否 |按会话ID过滤|
 |agentId|query|string| 否 |按智能体ID过滤|
+|workflowId|query|string| 否 |按工作流ID过滤|
 |status|query|string| 否 |按任务状态过滤（CREATED / RUNNING / COMPLETED / FAILED / SUSPENDED / CANCELLED）|
 |page|query|integer| 否 |页码，默认 1|
 |size|query|integer| 否 |每页条数，默认 20，最大 100|
@@ -566,6 +579,7 @@ GET /tasks
 | sessionId|string|false|none||会话ID|
 | agentId|string|false|none||智能体ID|
 | modelId|string|false|none||模型ID|
+| workflowId|string|false|none||工作流ID|
 | status|string|true|none||任务状态|
 | intent|string|false|none||意图摘要|
 | createdAt|string(date-time)|true|none||创建时间|
@@ -679,36 +693,15 @@ POST /tasks/{id}/cancel
 
 POST /chat
 
-等价于 `POST /tasks` + `GET /tasks/{id}/events` 的合并接口：创建任务并直接建立 SSE 事件流，省去两次调用。适用于实时对话场景。支持与 `/tasks` 相同的三种模式。
+等价于 `POST /tasks` + `GET /tasks/{id}/events` 的合并接口：创建任务并直接建立 SSE 事件流，省去两次调用。适用于实时对话场景。请求参数与 `POST /tasks` 完全相同（Agent / Workflow / Chat 三种执行方式）。未传 `sessionId` 时会先创建会话；传了 `sessionId` 时复用已有会话，不会新建会话。
 
 > Body 请求参数
-
-Agent 模式：
 
 ```json
 {
   "agentId": "agent_abc123",
-  "sessionId": "session_abc123",
-  "message": "你好，请介绍一下你自己"
-}
-```
-
-模型直连模式：
-
-```json
-{
-  "modelId": "gpt-4o",
-  "sessionId": "session_abc123",
-  "message": "你好，请介绍一下你自己"
-}
-```
-
-Auto 模式：
-
-```json
-{
-  "sessionId": "session_abc123",
-  "message": "你好，请介绍一下你自己"
+  "message": "你好，请介绍一下你自己",
+  "capabilities": ["github:*"]
 }
 ```
 
@@ -718,11 +711,7 @@ Auto 模式：
 |---|---|---|---|---|
 |X-Tenant-Id|header|string| 否 |租户ID，默认 tenant_default|
 |X-User-Id|header|string| 否 |用户ID|
-|body|body|[CreateTaskRequest](#schemacreatetaskrequest)| 是 |none|
-| agentId|body|string| 否 |智能体ID，传则走 Agent 模式|
-| modelId|body|string| 否 |模型ID，agentId 为空时生效（模型直连模式）；两者都不传则走 Auto 模式|
-| sessionId|body|string| 是 |会话ID|
-| message|body|string| 是 |用户消息|
+|body|body|[CreateTaskRequest](#schemacreatetaskrequest)| 是 |参数说明同 `POST /tasks`|
 
 > 返回示例
 

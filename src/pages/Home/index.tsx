@@ -120,7 +120,7 @@ function Home() {
   }, []);
 
   return (
-    <div className="flex h-dvh w-full overflow-hidden">
+    <div className="flex h-full w-full overflow-hidden">
       {/* ── Left: Session sidebar ──────────────────────────────────── */}
       <ConversationSidebar />
 

@@ -66,13 +66,14 @@ POST /auth/register
 
 POST /auth/login
 
+通过 email 登录，系统自动识别用户所属租户，无需手动传 tenantId。
+
 > Body 请求参数
 
 ```json
 {
-  "username": "admin",
-  "password": "password123",
-  "tenantId": "tenant_abc123"
+  "email": "admin@abc.local",
+  "password": "password123"
 }
 ```
 
@@ -81,9 +82,8 @@ POST /auth/login
 |名称|位置|类型|必选|说明|
 |---|---|---|---|---|
 |body|body|object| 是 |none|
-| username|body|string| 是 |用户名|
+| email|body|string| 是 |邮箱（全局唯一账号标识）|
 | password|body|string| 是 |密码|
-| tenantId|body|string| 否 |租户ID，平台管理员可不传|
 
 > 返回示例
 
