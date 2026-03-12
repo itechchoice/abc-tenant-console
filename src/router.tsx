@@ -10,6 +10,7 @@ import TokenQuota from './pages/TokenQuota/index';
 import Profile from './pages/Profile/index';
 import WorkflowList from './pages/WorkflowList/index';
 import WorkflowEditor from './pages/WorkflowEditor/index';
+import ConnectorAuthCallback from './pages/ConnectorAuthCallback/index';
 
 const basename = import.meta.env.BASE_URL === '/'
   ? '/'
@@ -24,6 +25,12 @@ const router = createBrowserRouter(
           path: '/login',
           element: <Login />,
           handle: { title: 'Sign In' },
+        },
+        {
+          // OAuth2 callback — standalone page, outside the main App layout
+          path: '/connector-auth-callback',
+          element: <ConnectorAuthCallback />,
+          handle: { title: 'Authorization' },
         },
         {
           path: '/',

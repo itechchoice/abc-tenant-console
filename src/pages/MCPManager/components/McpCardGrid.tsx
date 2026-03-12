@@ -1,18 +1,21 @@
+import { motion } from 'framer-motion';
 import { Skeleton } from '@/components/ui/skeleton';
-import type { McpServer } from '@/schemas/mcpManagerSchema';
 import { useMcpManagerStore } from '@/stores/mcpManagerStore';
+import type { McpServerWithConnection } from '../hooks/useMCPList';
 import McpCard from './McpCard';
 
 interface McpCardGridProps {
-  servers: McpServer[];
+  servers: McpServerWithConnection[];
   isLoading: boolean;
-  onToggleStatus: (id: string) => void;
+  onPublish: (id: string) => void;
+  onUnpublish: (id: string) => void;
   onDelete: (id: string) => void;
   onSync: (id: string) => void;
+  onConnect: (server: McpServerWithConnection) => void;
 }
 
 export default function McpCardGrid({
-  servers, isLoading, onToggleStatus, onDelete, onSync,
+  servers, isLoading, onPublish, onUnpublish, onDelete, onSync, onConnect,
 }: McpCardGridProps) {
   const { updatingMcpIds, openDetailModal, openEditDialog } = useMcpManagerStore();
 
@@ -20,7 +23,7 @@ export default function McpCardGrid({
     return (
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {Array.from({ length: 6 }).map((_, i) => (
-          <Skeleton key={i} className="h-48 rounded-xl" />
+          <Skeleton key={i} className="h-52 rounded-2xl" />
         ))}
       </div>
     );
@@ -28,14 +31,28 @@ export default function McpCardGrid({
 
   if (servers.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-16 text-center">
-        <p className="text-muted-foreground">No MCP Servers found</p>
+      <div className="flex flex-col items-center justify-center py-20 text-center">
+        <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100">
+          <svg className="h-7 w-7 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M5 12h14M12 5l7 7-7 7" />
+          </svg>
+        </div>
+        <p className="text-sm font-medium text-slate-600">No MCP Servers found</p>
+        <p className="mt-1 text-xs text-slate-400">Create a new server to get started</p>
       </div>
     );
   }
 
   return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+    <motion.div
+      className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
+      initial="hidden"
+      animate="visible"
+      variants={{
+        hidden: {},
+        visible: { transition: { staggerChildren: 0.05 } },
+      }}
+    >
       {servers.map((mcp) => (
         <McpCard
           key={mcp.id}
@@ -44,10 +61,12 @@ export default function McpCardGrid({
           onDetail={() => openDetailModal(mcp.id)}
           onEdit={() => openEditDialog(mcp.id)}
           onDelete={() => onDelete(mcp.id)}
-          onToggleStatus={() => onToggleStatus(mcp.id)}
+          onPublish={() => onPublish(mcp.id)}
+          onUnpublish={() => onUnpublish(mcp.id)}
           onSync={() => onSync(mcp.id)}
+          onConnect={() => onConnect(mcp)}
         />
       ))}
-    </div>
+    </motion.div>
   );
 }

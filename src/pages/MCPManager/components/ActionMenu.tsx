@@ -1,4 +1,4 @@
-import { MoreHorizontal, Pencil, Trash2, Eye, Power, PowerOff, RefreshCw } from 'lucide-react';
+import { MoreHorizontal, Pencil, Trash2, Eye, RefreshCw, Link2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -7,55 +7,53 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import type { McpServer } from '@/schemas/mcpManagerSchema';
 
 interface ActionMenuProps {
-  mcp: McpServer;
   onDetail: () => void;
   onEdit: () => void;
   onDelete: () => void;
-  onToggleStatus: () => void;
   onSync: () => void;
+  onConnect?: () => void;
 }
 
-export default function ActionMenu({ mcp, onDetail, onEdit, onDelete, onToggleStatus, onSync }: ActionMenuProps) {
-  const isActive = mcp.status === 'ACTIVE';
-
+export default function ActionMenu({
+  onDetail, onEdit, onDelete, onSync, onConnect,
+}: ActionMenuProps) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" className="h-8 w-8">
-          <MoreHorizontal className="h-4 w-4" />
+        <Button variant="ghost" size="icon" className="h-7 w-7">
+          <MoreHorizontal className="h-3.5 w-3.5" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-44">
+      <DropdownMenuContent align="end" className="w-40">
         <DropdownMenuItem onClick={onDetail}>
-          <Eye className="h-4 w-4 mr-2" />
-          Details
+          <Eye className="h-3.5 w-3.5 mr-2" />
+          View Details
         </DropdownMenuItem>
         <DropdownMenuItem onClick={onEdit}>
-          <Pencil className="h-4 w-4 mr-2" />
+          <Pencil className="h-3.5 w-3.5 mr-2" />
           Edit
         </DropdownMenuItem>
         <DropdownMenuItem onClick={onSync}>
-          <RefreshCw className="h-4 w-4 mr-2" />
+          <RefreshCw className="h-3.5 w-3.5 mr-2" />
           Sync Tools
         </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        {isActive ? (
-          <DropdownMenuItem onClick={onToggleStatus}>
-            <PowerOff className="h-4 w-4 mr-2" />
-            Disable
-          </DropdownMenuItem>
-        ) : (
-          <DropdownMenuItem onClick={onToggleStatus}>
-            <Power className="h-4 w-4 mr-2" />
-            Enable
-          </DropdownMenuItem>
+        {onConnect && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={onConnect}>
+              <Link2 className="h-3.5 w-3.5 mr-2" />
+              Connect OAuth2
+            </DropdownMenuItem>
+          </>
         )}
         <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={onDelete} className="text-destructive focus:text-destructive">
-          <Trash2 className="h-4 w-4 mr-2" />
+        <DropdownMenuItem
+          onClick={onDelete}
+          className="text-rose-600 focus:text-rose-600 focus:bg-rose-50"
+        >
+          <Trash2 className="h-3.5 w-3.5 mr-2" />
           Delete
         </DropdownMenuItem>
       </DropdownMenuContent>

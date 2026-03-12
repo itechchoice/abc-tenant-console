@@ -1,14 +1,22 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import { useMcpManagerStore } from '@/stores/mcpManagerStore';
 import {
   Pagination, PaginationContent, PaginationItem,
   PaginationPrevious, PaginationNext, PaginationLink,
 } from '@/components/ui/pagination';
+import type { McpServerWithConnection } from './hooks/useMCPList';
+import ConnectorAuth from '@/components/Auth';
+import { fetchServerAuthParams } from '@/http/mcpManagerApi';
 import { useMCPList } from './hooks/useMCPList';
-import { useToggleServerStatus, useDeleteMCP, useSyncTools } from './hooks/useMCPMutations';
+import {
+  useDeleteMCP, useSyncTools, usePublishServer, useUnpublishServer,
+} from './hooks/useMCPMutations';
 import MCPManagerHeader from './components/MCPManagerHeader';
 import CategoryFilter from './components/CategoryFilter';
 import McpCardGrid from './components/McpCardGrid';
+import McpStatsBar from './components/McpStatsBar';
 import ConfirmDialog from './components/ConfirmDialog';
 import MCPDetailDialog from './components/MCPDetailDialog';
 import McpFormDialog from './McpFormDialog';
@@ -16,29 +24,48 @@ import CategorySheet from './CategoryManagement/CategorySheet';
 
 export default function MCPManager() {
   const { page, setPage } = useMcpManagerStore();
+  const queryClient = useQueryClient();
   const { data, isLoading } = useMCPList();
-  const toggleStatusMutation = useToggleServerStatus();
+  const publishMutation = usePublishServer();
+  const unpublishMutation = useUnpublishServer();
   const deleteMutation = useDeleteMCP();
   const syncMutation = useSyncTools();
 
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
-  const [disableTarget, setDisableTarget] = useState<string | null>(null);
+  const [unpublishTarget, setUnpublishTarget] = useState<string | null>(null);
+  const [connectTarget, setConnectTarget] = useState<McpServerWithConnection | null>(null);
+
+  const stats = useMemo(() => {
+    const servers = data?.content ?? [];
+    const activeCount = servers.filter((s) => s.status === 'ACTIVE').length;
+    const totalTools = servers.reduce((acc, s) => acc + (s.toolCount ?? 0), 0);
+    return [
+      { label: 'Total Servers', value: data?.totalElements ?? 0, accent: 'slate' as const },
+      { label: 'Published', value: activeCount, accent: 'emerald' as const },
+      { label: 'Available Tools', value: totalTools, accent: 'slate' as const },
+    ];
+  }, [data]);
+
+  const handlePublish = useCallback((id: string) => {
+    publishMutation.mutate(id);
+  }, [publishMutation]);
+
+  const handleUnpublish = useCallback((id: string) => setUnpublishTarget(id), []);
 
   const handleDelete = useCallback((id: string) => setDeleteTarget(id), []);
 
-  const handleToggleStatus = useCallback((id: string) => {
-    const server = data?.content.find((s) => s.id === id);
-    if (!server) return;
-    if (server.status === 'ACTIVE') {
-      setDisableTarget(id);
-    } else {
-      toggleStatusMutation.mutate({ serverId: id, status: 'ACTIVE' });
-    }
-  }, [data, toggleStatusMutation]);
+  const handleSync = useCallback((id: string) => syncMutation.mutate(id), [syncMutation]);
 
-  const handleSync = useCallback((id: string) => {
-    syncMutation.mutate(id);
-  }, [syncMutation]);
+  const handleConnect = useCallback((server: McpServerWithConnection) => setConnectTarget(server), []);
+
+  // Fetch USER-level auth params when a server is selected for auth
+  const { data: rawAuthParams = [], isLoading: isLoadingAuthParams } = useQuery({
+    queryKey: ['server-auth-params', connectTarget?.id],
+    queryFn: () => fetchServerAuthParams(connectTarget!.id),
+    enabled: !!connectTarget && connectTarget.authType !== 'NONE',
+    staleTime: 2 * 60 * 1000,
+  });
+  const authParams = rawAuthParams.filter((p) => p.levelScope === 'USER');
 
   const confirmDelete = useCallback(() => {
     if (deleteTarget) {
@@ -46,28 +73,31 @@ export default function MCPManager() {
     }
   }, [deleteTarget, deleteMutation]);
 
-  const confirmDisable = useCallback(() => {
-    if (disableTarget) {
-      toggleStatusMutation.mutate(
-        { serverId: disableTarget, status: 'DISABLED' },
-        { onSettled: () => setDisableTarget(null) },
+  const confirmUnpublish = useCallback(() => {
+    if (unpublishTarget) {
+      unpublishMutation.mutate(
+        unpublishTarget,
+        { onSettled: () => setUnpublishTarget(null) },
       );
     }
-  }, [disableTarget, toggleStatusMutation]);
+  }, [unpublishTarget, unpublishMutation]);
 
   const totalPages = data?.totalPages ?? 0;
 
   return (
-    <div className="flex flex-col gap-6 p-6 h-full overflow-auto">
+    <div className="flex flex-col gap-5 p-6 h-full overflow-auto bg-slate-50">
       <MCPManagerHeader />
+      <McpStatsBar stats={stats} />
       <CategoryFilter />
 
       <McpCardGrid
         servers={data?.content ?? []}
         isLoading={isLoading}
-        onToggleStatus={handleToggleStatus}
+        onPublish={handlePublish}
+        onUnpublish={handleUnpublish}
         onDelete={handleDelete}
         onSync={handleSync}
+        onConnect={handleConnect}
       />
 
       {totalPages > 1 && (
@@ -105,6 +135,21 @@ export default function MCPManager() {
       <McpFormDialog />
       <CategorySheet />
 
+      <ConnectorAuth
+        open={!!connectTarget}
+        server={connectTarget}
+        authParams={authParams}
+        isLoadingParams={isLoadingAuthParams}
+        mode="admin"
+        onSuccess={() => {
+          setConnectTarget(null);
+          toast.success('Connected successfully');
+          queryClient.invalidateQueries({ queryKey: ['mcp'] });
+        }}
+        onError={() => setConnectTarget(null)}
+        onClose={() => setConnectTarget(null)}
+      />
+
       <ConfirmDialog
         open={!!deleteTarget}
         onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}
@@ -116,13 +161,13 @@ export default function MCPManager() {
         onConfirm={confirmDelete}
       />
       <ConfirmDialog
-        open={!!disableTarget}
-        onOpenChange={(open) => { if (!open) setDisableTarget(null); }}
-        title="Disable MCP Server"
-        description="This will make the MCP server unavailable to users. You can enable it again later."
-        confirmLabel="Disable"
-        loading={toggleStatusMutation.isPending}
-        onConfirm={confirmDisable}
+        open={!!unpublishTarget}
+        onOpenChange={(open) => { if (!open) setUnpublishTarget(null); }}
+        title="Unpublish MCP Server"
+        description="This will hide the server from users. You can publish it again at any time."
+        confirmLabel="Unpublish"
+        loading={unpublishMutation.isPending}
+        onConfirm={confirmUnpublish}
       />
     </div>
   );
