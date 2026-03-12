@@ -11,6 +11,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import type { McpServerWithConnection } from '../hooks/useMCPList';
+import { useUpdateDisplay } from '../hooks/useMCPMutations';
 import ActionMenu from './ActionMenu';
 
 // ---------------------------------------------------------------------------
@@ -138,6 +139,8 @@ export default function McpCard({
 }: McpCardProps) {
   const isActive = mcp.status === 'ACTIVE';
   const needsAuth = mcp.authType !== 'NONE';
+  const displayChecked = mcp.userDisplay?.display ?? false;
+  const updateDisplay = useUpdateDisplay();
 
   return (
     <motion.div
@@ -191,16 +194,18 @@ export default function McpCard({
               <TooltipTrigger asChild>
                 <span className="shrink-0 mt-0.5 inline-flex">
                   <Switch
-                    checked={isActive}
+                    checked={displayChecked}
+                    disabled={!isActive || updateDisplay.isPending}
                     onCheckedChange={(checked) => {
-                      if (checked) onPublish();
-                      else onUnpublish();
+                      updateDisplay.mutate({ serverId: mcp.id, display: checked });
                     }}
                   />
                 </span>
               </TooltipTrigger>
               <TooltipContent side="top" className="max-w-[220px] text-center text-xs">
-                Enabling this button will display the service in the tools toolbar.
+                {isActive
+                  ? 'Enabling this button will display the service in the tools toolbar.'
+                  : 'Publish the server first to enable display control.'}
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>

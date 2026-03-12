@@ -3,7 +3,7 @@ import { useMcpManagerStore } from '@/stores/mcpManagerStore';
 import type { CreateMcpPayload, UpdateMcpPayload } from '@/schemas/mcpManagerSchema';
 import {
   createMCP, updateMCP, deleteMCP, syncServerTools,
-  publishServer, unpublishServer,
+  publishServer, unpublishServer, updateUserMcpDisplay,
 } from '@/http/mcpManagerApi';
 import { mcpQueryKeys } from './useMCPList';
 
@@ -86,6 +86,17 @@ export function usePublishServer() {
       removeUpdatingMcp(serverId);
       qc.invalidateQueries({ queryKey: mcpQueryKeys.lists() });
       qc.invalidateQueries({ queryKey: mcpQueryKeys.detail(serverId) });
+    },
+  });
+}
+
+export function useUpdateDisplay() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ serverId, display }: { serverId: string; display: boolean }) =>
+      updateUserMcpDisplay({ servers: [{ serverId, display }] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: mcpQueryKeys.lists() });
     },
   });
 }

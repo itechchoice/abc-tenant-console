@@ -177,6 +177,39 @@ export async function fetchUserConnectionServers(): Promise<UserConnectionServer
 }
 
 // ---------------------------------------------------------------------------
+// User display preference per server
+// ---------------------------------------------------------------------------
+
+export interface UserMcpDisplay {
+  serverId: number | string;
+  serverCode?: string;
+  serverName?: string;
+  icon?: string;
+  display: boolean;
+  updatedAt?: string;
+  message?: string;
+}
+
+export interface UpdateDisplayPayload {
+  servers: Array<{ serverId: number | string; display: boolean }>;
+}
+
+export async function fetchUserMcpDisplay(): Promise<UserMcpDisplay[]> {
+  const res: ApiResponse<UserMcpDisplay[]> = await mcpApiClient.get(
+    '/mcp/user/mcp-servers/display',
+  );
+  return unwrap(res);
+}
+
+export async function updateUserMcpDisplay(payload: UpdateDisplayPayload): Promise<UserMcpDisplay[]> {
+  const res: ApiResponse<UserMcpDisplay[]> = await mcpApiClient.put(
+    '/mcp/user/mcp-servers/display',
+    payload,
+  );
+  return unwrap(res);
+}
+
+// ---------------------------------------------------------------------------
 // Auth Config Templates
 // ---------------------------------------------------------------------------
 

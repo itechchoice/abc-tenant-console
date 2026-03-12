@@ -1,12 +1,13 @@
 import { useQuery } from '@tanstack/react-query';
 import { useMcpManagerStore } from '@/stores/mcpManagerStore';
-import { fetchMCPList, fetchUserConnectionServers } from '@/http/mcpManagerApi';
+import { fetchMCPList, fetchUserConnectionServers, fetchUserMcpDisplay } from '@/http/mcpManagerApi';
 import type { McpListResponse, McpServer } from '@/schemas/mcpManagerSchema';
-import type { UserConnectionServer } from '@/http/mcpManagerApi';
+import type { UserConnectionServer, UserMcpDisplay } from '@/http/mcpManagerApi';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 
 export interface McpServerWithConnection extends McpServer {
   userConnection?: UserConnectionServer;
+  userDisplay?: UserMcpDisplay;
 }
 
 export interface McpListWithConnectionResponse extends Omit<McpListResponse, 'content'> {
@@ -33,7 +34,7 @@ export function useMCPList() {
   return useQuery<McpListWithConnectionResponse>({
     queryKey: mcpQueryKeys.list({ page, pageSize, searchValue: debouncedSearch, selectedCategoryCode }),
     queryFn: async () => {
-      const [listRes, connections] = await Promise.all([
+      const [listRes, connections, displayList] = await Promise.all([
         fetchMCPList({
           page,
           size: pageSize,
@@ -41,15 +42,18 @@ export function useMCPList() {
           categoryCode: selectedCategoryCode || undefined,
         }),
         fetchUserConnectionServers().catch(() => [] as UserConnectionServer[]),
+        fetchUserMcpDisplay().catch(() => [] as UserMcpDisplay[]),
       ]);
 
-      const connectionMap = new Map(connections.map((c) => [c.serverId, c]));
+      const connectionMap = new Map(connections.map((c) => [String(c.serverId), c]));
+      const displayMap = new Map(displayList.map((d) => [String(d.serverId), d]));
 
       return {
         ...listRes,
         content: listRes.content.map((server) => ({
           ...server,
           userConnection: connectionMap.get(server.id),
+          userDisplay: displayMap.get(server.id),
         })),
       };
     },
