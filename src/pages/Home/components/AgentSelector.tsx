@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   ChevronDown, Check, Search, Bot,
 } from 'lucide-react';
-import { useChatStore } from '@/stores/chatStore';
+
 import { cn } from '@/lib/utils';
 
 // ---------------------------------------------------------------------------
@@ -76,8 +76,7 @@ export default function AgentSelector() {
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const selectedAgentId = useChatStore((s) => s.selectedAgentId);
-  const setSelectedAgentId = useChatStore((s) => s.setSelectedAgentId);
+  const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) return undefined;

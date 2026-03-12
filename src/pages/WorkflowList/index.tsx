@@ -23,7 +23,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import {
   Pagination, PaginationContent, PaginationItem,
-  PaginationPrevious, PaginationNext, PaginationLink,
+  PaginationPrevious, PaginationNext, PaginationLink, PaginationEllipsis,
 } from '@/components/ui/pagination';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -140,7 +140,20 @@ export default function WorkflowList() {
     }
   }, [editingGroup, groupForm, createGroupMut, updateGroupMut]);
 
-  const totalPages = data ? Math.ceil(data.total / (data.size || pageSize)) : 0;
+  const total = data?.total ?? 0;
+  const totalPages = total > 0 ? Math.ceil(total / pageSize) : 0;
+
+  const getPageNumbers = (): (number | 'ellipsis')[] => {
+    if (totalPages <= 7) return Array.from({ length: totalPages }, (_, i) => i);
+    const pages: (number | 'ellipsis')[] = [0];
+    if (page > 2) pages.push('ellipsis');
+    const start = Math.max(1, page - 1);
+    const end = Math.min(totalPages - 2, page + 1);
+    for (let i = start; i <= end; i++) pages.push(i);
+    if (page < totalPages - 3) pages.push('ellipsis');
+    pages.push(totalPages - 1);
+    return pages;
+  };
 
   return (
     <div className="flex h-full overflow-hidden">
@@ -349,30 +362,43 @@ export default function WorkflowList() {
         )}
 
         {/* Pagination */}
-        {totalPages > 1 && (
-          <Pagination className="mt-auto pt-4">
-            <PaginationContent>
-              <PaginationItem>
-                <PaginationPrevious
-                  onClick={() => setPage(Math.max(0, page - 1))}
-                  className={page === 0 ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
-                />
-              </PaginationItem>
-              {Array.from({ length: totalPages }).map((_, i) => (
-                <PaginationItem key={i}>
-                  <PaginationLink isActive={page === i} onClick={() => setPage(i)} className="cursor-pointer">
-                    {i + 1}
-                  </PaginationLink>
-                </PaginationItem>
-              ))}
-              <PaginationItem>
-                <PaginationNext
-                  onClick={() => setPage(Math.min(totalPages - 1, page + 1))}
-                  className={page >= totalPages - 1 ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
-                />
-              </PaginationItem>
-            </PaginationContent>
-          </Pagination>
+        {total > 0 && (
+          <div className="mt-auto pt-4 flex items-center justify-between">
+            <span className="text-sm text-muted-foreground">
+              {total} workflow{total !== 1 ? 's' : ''} · Page {page + 1} of {Math.max(totalPages, 1)}
+            </span>
+            {totalPages > 1 && (
+              <Pagination className="mx-0 w-auto">
+                <PaginationContent>
+                  <PaginationItem>
+                    <PaginationPrevious
+                      onClick={() => setPage(Math.max(0, page - 1))}
+                      className={page === 0 ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
+                    />
+                  </PaginationItem>
+                  {getPageNumbers().map((p, idx) =>
+                    p === 'ellipsis' ? (
+                      <PaginationItem key={`e-${idx}`}>
+                        <PaginationEllipsis />
+                      </PaginationItem>
+                    ) : (
+                      <PaginationItem key={p}>
+                        <PaginationLink isActive={page === p} onClick={() => setPage(p)} className="cursor-pointer">
+                          {p + 1}
+                        </PaginationLink>
+                      </PaginationItem>
+                    ),
+                  )}
+                  <PaginationItem>
+                    <PaginationNext
+                      onClick={() => setPage(Math.min(totalPages - 1, page + 1))}
+                      className={page >= totalPages - 1 ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
+                    />
+                  </PaginationItem>
+                </PaginationContent>
+              </Pagination>
+            )}
+          </div>
         )}
       </div>
 

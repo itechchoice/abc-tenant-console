@@ -1,5 +1,6 @@
-import { memo } from 'react';
+import { memo, useMemo } from 'react';
 import { motion } from 'framer-motion';
+import { Wrench, GitBranch, Sparkles } from 'lucide-react';
 import { useWorkflowRuntimeStore } from '@/stores/workflowRuntimeStore';
 import { InteractionForm } from '@/components/GenerativeUI/InteractionForm';
 import { MarkdownMessage } from '@/components/GenerativeUI/MarkdownMessage';
@@ -13,6 +14,37 @@ interface MessageRowProps {
   msg: Message;
   onInteractionSubmit: (payload: { actionId: string; formData: Record<string, string> }) => void;
 }
+
+// ---------------------------------------------------------------------------
+// Capability tags shown beneath user message content
+// ---------------------------------------------------------------------------
+
+function parseCapLabel(cap: string): { icon: 'all' | 'tool' | 'workflow'; label: string } {
+  if (cap === '*') return { icon: 'all', label: 'All Tools' };
+  if (cap.startsWith('workflow:')) return { icon: 'workflow', label: cap.slice('workflow:'.length) };
+  return { icon: 'tool', label: cap };
+}
+
+function CapabilityTags({ capabilities }: { capabilities: string[] }) {
+  const tags = useMemo(() => capabilities.map(parseCapLabel), [capabilities]);
+  return (
+    <div className="mt-1.5 flex flex-wrap items-center gap-1">
+      {tags.map((tag) => (
+        <span
+          key={tag.label}
+          className="inline-flex items-center gap-1 rounded-md bg-primary-foreground/15 px-1.5 py-0.5 text-[10px] font-medium text-primary-foreground/80"
+        >
+          {tag.icon === 'all' && <Sparkles size={9} />}
+          {tag.icon === 'tool' && <Wrench size={9} />}
+          {tag.icon === 'workflow' && <GitBranch size={9} />}
+          <span className="max-w-[100px] truncate">{tag.label}</span>
+        </span>
+      ))}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 
 const bubbleVariants = {
   hidden: { opacity: 0, y: 6 },
@@ -107,9 +139,14 @@ export const MessageRow = memo(({ msg, onInteractionSubmit }: MessageRowProps) =
           )}
 
           {isUser ? (
-            <p className="whitespace-pre-wrap text-sm leading-relaxed">
-              {msg.content}
-            </p>
+            <>
+              <p className="whitespace-pre-wrap text-sm leading-relaxed">
+                {msg.content}
+              </p>
+              {Array.isArray(msg.metadata?.capabilities) && msg.metadata.capabilities.length > 0 && (
+                <CapabilityTags capabilities={msg.metadata.capabilities as string[]} />
+              )}
+            </>
           ) : (
             <MarkdownMessage content={msg.content} />
           )}

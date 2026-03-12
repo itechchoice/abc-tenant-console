@@ -28,7 +28,7 @@ export const NODE_FIELDS = [
     rules: [{ required: true, message: 'Position Y is required' }],
   },
   // MODEL fields
-  { key: 'data.modelId', label: 'Model ID', type: 'text' as const, placeholder: 'e.g. gpt-4o' },
+  { key: 'data.modelId', label: 'Model', type: 'select' as const, placeholder: 'Auto (default model)', options: [] as { label: string; value: string }[] },
   {
     key: 'data.temperature',
     label: 'Temperature',

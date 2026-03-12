@@ -8,7 +8,7 @@ import { ChatMain } from '@/components/Chat/ChatMain';
 import { useSessionDetail, chatQueryKeys } from '@/hooks/useChatHistory';
 import { useAgentChat } from '@/hooks/useAgentChat';
 import { useChatStore } from '@/stores/chatStore';
-import { ChatInput } from './ChatInput';
+import { ChatInput, type ChatInputMeta } from './ChatInput';
 import { ChatSkeleton } from './ChatSkeleton';
 import { WelcomeState } from './WelcomeState';
 
@@ -58,9 +58,10 @@ export default function ChatPanel() {
     if (!currentSessionId) hasSyncedSessionRef.current = null;
   }, [currentSessionId]);
 
-  const handleSend = useCallback((content: string) => {
+  const handleSend = useCallback((content: string, meta?: ChatInputMeta) => {
     sendMessage(content, {
       sessionId: useChatStore.getState().currentSessionId || undefined,
+      ...meta,
     });
   }, [sendMessage]);
 

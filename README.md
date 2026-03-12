@@ -86,12 +86,19 @@ VITE_PROXY_TARGET=https://arch.stg.alphabitcore.io
 含义说明：
 
 - `VITE_APP_BASE_PATH`：Vite 静态资源前缀，同时决定 React Router 的 `basename`
-- `VITE_API_BASE_URL`：前端 axios 请求前缀
+- `VITE_API_BASE_URL`：前端统一 API 前缀，业务服务路径会在代码里继续拼接
 - `VITE_PROXY_TARGET`：本地开发时 Vite 代理转发的真实后端地址
 
 开发环境下的请求路径链路为：
 
-`apiClient` -> `Vite Proxy` -> `/api/v1` 重写 -> 后端服务
+`service client` -> `/tenant-console-api/<service>` -> `Vite Proxy` -> `/api/v1/<service>` -> 后端服务
+
+当前服务映射如下：
+
+- `AUTH_API` -> `/tenant-console-api/auth-server/...`
+- `ENGINE_API / WORKFLOW_API` -> `/tenant-console-api/engine/...`
+- `LLM_GATEWAY_API` -> `/tenant-console-api/llm-gateway/...`
+- `MCP API` -> `/tenant-console-api/mcp-gateway/...`
 
 ## 目录结构
 

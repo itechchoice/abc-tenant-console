@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { apiClient, type ApiResponse, unwrap } from './client';
+import { engineApiClient, type ApiResponse, unwrap } from './client';
 import {
   SessionItemSchema,
   normalizeServerMessages,
@@ -86,7 +86,7 @@ function validateSessionItems(raw: SessionItem[]): SessionItem[] {
  * We handle both defensively.
  */
 export async function fetchSessions(params?: SessionsQueryParams): Promise<SessionsResponse> {
-  const res: ApiResponse<SessionItem[] | PaginatedSessionData> = await apiClient.get('/sessions', { params });
+  const res: ApiResponse<SessionItem[] | PaginatedSessionData> = await engineApiClient.get('/sessions', { params });
   const data = unwrap(res);
 
   if (Array.isArray(data)) {
@@ -104,7 +104,7 @@ export async function fetchSessions(params?: SessionsQueryParams): Promise<Sessi
 }
 
 export async function fetchSessionDetail(sessionId: string): Promise<SessionDetail> {
-  const res: ApiResponse<SessionDetailData> = await apiClient.get(`/sessions/${sessionId}`);
+  const res: ApiResponse<SessionDetailData> = await engineApiClient.get(`/sessions/${sessionId}`);
   const raw = unwrap(res);
 
   return {
@@ -125,7 +125,7 @@ export async function fetchOlderMessages(
   before: string,
   limit = 20,
 ): Promise<{ messages: Message[]; hasMore: boolean }> {
-  const res: ApiResponse<SessionDetailData> = await apiClient.get(`/sessions/${sessionId}`, {
+  const res: ApiResponse<SessionDetailData> = await engineApiClient.get(`/sessions/${sessionId}`, {
     params: { before, limit },
   });
   const raw = unwrap(res);
@@ -137,11 +137,11 @@ export async function fetchOlderMessages(
 }
 
 export async function renameSession(id: string, title: string): Promise<void> {
-  const res: ApiResponse<unknown> = await apiClient.put(`/sessions/${id}`, { title });
+  const res: ApiResponse<unknown> = await engineApiClient.put(`/sessions/${id}`, { title });
   unwrap(res);
 }
 
 export async function deleteSession(id: string): Promise<void> {
-  const res: ApiResponse<null> = await apiClient.delete(`/sessions/${id}`);
+  const res: ApiResponse<null> = await engineApiClient.delete(`/sessions/${id}`);
   unwrap(res);
 }

@@ -1,4 +1,4 @@
-import { apiClient, type ApiResponse, unwrap } from './client';
+import { llmGatewayApiClient, type ApiResponse, unwrap } from './client';
 import type {
   AddPoolMemberPayload,
   CreateModelPayload,
@@ -127,7 +127,7 @@ export async function fetchProviders(params: {
   name?: string;
   providerType?: string;
 } = {}): Promise<PageResponse<Provider>> {
-  const res: ApiResponse<RawRecord> = await apiClient.get(PROVIDERS, {
+  const res: ApiResponse<RawRecord> = await llmGatewayApiClient.get(PROVIDERS, {
     params: {
       page: params.page,
       size: params.size,
@@ -140,27 +140,27 @@ export async function fetchProviders(params: {
 }
 
 export async function fetchProviderDetail(id: string): Promise<Provider> {
-  const res: ApiResponse<RawRecord> = await apiClient.get(`${PROVIDERS}/${id}`);
+  const res: ApiResponse<RawRecord> = await llmGatewayApiClient.get(`${PROVIDERS}/${id}`);
   return mapProvider(unwrap(res));
 }
 
 export async function createProvider(payload: CreateProviderPayload): Promise<Provider> {
-  const res: ApiResponse<RawRecord> = await apiClient.post(PROVIDERS, payload);
+  const res: ApiResponse<RawRecord> = await llmGatewayApiClient.post(PROVIDERS, payload);
   return mapProvider(unwrap(res));
 }
 
 export async function updateProvider(id: string, payload: UpdateProviderPayload): Promise<Provider> {
-  const res: ApiResponse<RawRecord> = await apiClient.put(`${PROVIDERS}/${id}`, payload);
+  const res: ApiResponse<RawRecord> = await llmGatewayApiClient.put(`${PROVIDERS}/${id}`, payload);
   return mapProvider(unwrap(res));
 }
 
 export async function deleteProvider(id: string): Promise<void> {
-  const res: ApiResponse<null> = await apiClient.delete(`${PROVIDERS}/${id}`);
+  const res: ApiResponse<null> = await llmGatewayApiClient.delete(`${PROVIDERS}/${id}`);
   unwrap(res);
 }
 
 export async function updateProviderStatus(id: string, enabled: boolean): Promise<Provider> {
-  const res: ApiResponse<RawRecord> = await apiClient.patch(`${PROVIDERS}/${id}/status`, { enabled });
+  const res: ApiResponse<RawRecord> = await llmGatewayApiClient.patch(`${PROVIDERS}/${id}/status`, { enabled });
   return mapProvider(unwrap(res));
 }
 
@@ -169,7 +169,7 @@ export async function updateProviderStatus(id: string, enabled: boolean): Promis
 // ---------------------------------------------------------------------------
 
 export async function createModelForProvider(providerId: string, payload: CreateModelPayload): Promise<ModelResponse> {
-  const res: ApiResponse<RawRecord> = await apiClient.post(`${PROVIDERS}/${providerId}/models`, payload);
+  const res: ApiResponse<RawRecord> = await llmGatewayApiClient.post(`${PROVIDERS}/${providerId}/models`, payload);
   return mapModel(unwrap(res));
 }
 
@@ -177,7 +177,7 @@ export async function fetchModelsByProvider(
   providerId: string,
   params: { page?: number; size?: number } = {},
 ): Promise<PageResponse<ModelResponse>> {
-  const res: ApiResponse<RawRecord> = await apiClient.get(`${PROVIDERS}/${providerId}/models`, {
+  const res: ApiResponse<RawRecord> = await llmGatewayApiClient.get(`${PROVIDERS}/${providerId}/models`, {
     params: {
       page: params.page,
       size: params.size,
@@ -193,7 +193,7 @@ export async function fetchAllModels(params: {
   modelType?: string;
   enabled?: boolean;
 } = {}): Promise<PageResponse<ModelResponse>> {
-  const res: ApiResponse<RawRecord> = await apiClient.get(MODELS, {
+  const res: ApiResponse<RawRecord> = await llmGatewayApiClient.get(MODELS, {
     params: {
       page: params.page,
       size: params.size,
@@ -206,22 +206,22 @@ export async function fetchAllModels(params: {
 }
 
 export async function fetchModelDetail(id: string): Promise<ModelResponse> {
-  const res: ApiResponse<RawRecord> = await apiClient.get(`${MODELS}/${id}`);
+  const res: ApiResponse<RawRecord> = await llmGatewayApiClient.get(`${MODELS}/${id}`);
   return mapModel(unwrap(res));
 }
 
 export async function updateModel(id: string, payload: UpdateModelPayload): Promise<ModelResponse> {
-  const res: ApiResponse<RawRecord> = await apiClient.put(`${MODELS}/${id}`, payload);
+  const res: ApiResponse<RawRecord> = await llmGatewayApiClient.put(`${MODELS}/${id}`, payload);
   return mapModel(unwrap(res));
 }
 
 export async function deleteModel(id: string): Promise<void> {
-  const res: ApiResponse<null> = await apiClient.delete(`${MODELS}/${id}`);
+  const res: ApiResponse<null> = await llmGatewayApiClient.delete(`${MODELS}/${id}`);
   unwrap(res);
 }
 
 export async function updateModelStatus(id: string, enabled: boolean): Promise<ModelResponse> {
-  const res: ApiResponse<RawRecord> = await apiClient.patch(`${MODELS}/${id}/status`, { enabled });
+  const res: ApiResponse<RawRecord> = await llmGatewayApiClient.patch(`${MODELS}/${id}/status`, { enabled });
   return mapModel(unwrap(res));
 }
 
@@ -230,41 +230,41 @@ export async function updateModelStatus(id: string, enabled: boolean): Promise<M
 // ---------------------------------------------------------------------------
 
 export async function fetchPools(): Promise<ModelPool[]> {
-  const res: ApiResponse<RawRecord[]> = await apiClient.get(POOLS);
+  const res: ApiResponse<RawRecord[]> = await llmGatewayApiClient.get(POOLS);
   return unwrap(res).map((item) => mapPool(item));
 }
 
 export async function fetchPoolDetail(id: string): Promise<ModelPool> {
-  const res: ApiResponse<RawRecord> = await apiClient.get(`${POOLS}/${id}`);
+  const res: ApiResponse<RawRecord> = await llmGatewayApiClient.get(`${POOLS}/${id}`);
   return mapPool(unwrap(res));
 }
 
 export async function createPool(payload: CreatePoolPayload): Promise<ModelPool> {
-  const res: ApiResponse<RawRecord> = await apiClient.post(POOLS, payload);
+  const res: ApiResponse<RawRecord> = await llmGatewayApiClient.post(POOLS, payload);
   return mapPool(unwrap(res));
 }
 
 export async function updatePool(id: string, payload: UpdatePoolPayload): Promise<ModelPool> {
-  const res: ApiResponse<RawRecord> = await apiClient.put(`${POOLS}/${id}`, payload);
+  const res: ApiResponse<RawRecord> = await llmGatewayApiClient.put(`${POOLS}/${id}`, payload);
   return mapPool(unwrap(res));
 }
 
 export async function deletePool(id: string): Promise<void> {
-  const res: ApiResponse<null> = await apiClient.delete(`${POOLS}/${id}`);
+  const res: ApiResponse<null> = await llmGatewayApiClient.delete(`${POOLS}/${id}`);
   unwrap(res);
 }
 
 export async function fetchPoolMembers(poolId: string): Promise<PoolMember[]> {
-  const res: ApiResponse<RawRecord[]> = await apiClient.get(`${POOLS}/${poolId}/members`);
+  const res: ApiResponse<RawRecord[]> = await llmGatewayApiClient.get(`${POOLS}/${poolId}/members`);
   return unwrap(res).map((item) => mapPoolMember(item));
 }
 
 export async function addPoolMember(poolId: string, payload: AddPoolMemberPayload): Promise<PoolMember> {
-  const res: ApiResponse<RawRecord> = await apiClient.post(`${POOLS}/${poolId}/members`, payload);
+  const res: ApiResponse<RawRecord> = await llmGatewayApiClient.post(`${POOLS}/${poolId}/members`, payload);
   return mapPoolMember(unwrap(res));
 }
 
 export async function removePoolMember(poolId: string, memberId: string): Promise<void> {
-  const res: ApiResponse<null> = await apiClient.delete(`${POOLS}/${poolId}/members/${memberId}`);
+  const res: ApiResponse<null> = await llmGatewayApiClient.delete(`${POOLS}/${poolId}/members/${memberId}`);
   unwrap(res);
 }

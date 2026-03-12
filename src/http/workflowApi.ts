@@ -1,4 +1,9 @@
-import { apiClient, type ApiResponse, unwrap } from './client';
+import {
+  engineApiClient,
+  mcpApiClient,
+  type ApiResponse,
+  unwrap,
+} from './client';
 import type {
   Workflow,
   WorkflowSummary,
@@ -65,7 +70,7 @@ function normalizePaginated<T>(
 // ---------------------------------------------------------------------------
 
 export async function fetchWorkflows(params: WorkflowListParams = {}): Promise<WorkflowListResponse> {
-  const res: ApiResponse<WorkflowSummary[] | PaginatedRaw<WorkflowSummary>> = await apiClient.get(
+  const res: ApiResponse<WorkflowSummary[] | PaginatedRaw<WorkflowSummary>> = await engineApiClient.get(
     '/workflows',
     { params },
   );
@@ -73,22 +78,22 @@ export async function fetchWorkflows(params: WorkflowListParams = {}): Promise<W
 }
 
 export async function fetchWorkflowById(id: string): Promise<Workflow> {
-  const res: ApiResponse<Workflow> = await apiClient.get(`/workflows/${id}`);
+  const res: ApiResponse<Workflow> = await engineApiClient.get(`/workflows/${id}`);
   return unwrap(res);
 }
 
 export async function createWorkflow(payload: CreateWorkflowPayload): Promise<Workflow> {
-  const res: ApiResponse<Workflow> = await apiClient.post('/workflows', payload);
+  const res: ApiResponse<Workflow> = await engineApiClient.post('/workflows', payload);
   return unwrap(res);
 }
 
 export async function updateWorkflow(id: string, payload: UpdateWorkflowPayload): Promise<Workflow> {
-  const res: ApiResponse<Workflow> = await apiClient.put(`/workflows/${id}`, payload);
+  const res: ApiResponse<Workflow> = await engineApiClient.put(`/workflows/${id}`, payload);
   return unwrap(res);
 }
 
 export async function deleteWorkflow(id: string): Promise<void> {
-  const res: ApiResponse<null> = await apiClient.delete(`/workflows/${id}`);
+  const res: ApiResponse<null> = await engineApiClient.delete(`/workflows/${id}`);
   unwrap(res);
 }
 
@@ -97,12 +102,12 @@ export async function deleteWorkflow(id: string): Promise<void> {
 // ---------------------------------------------------------------------------
 
 export async function publishWorkflow(id: string): Promise<Workflow> {
-  const res: ApiResponse<Workflow> = await apiClient.post(`/workflows/${id}/publish`);
+  const res: ApiResponse<Workflow> = await engineApiClient.post(`/workflows/${id}/publish`);
   return unwrap(res);
 }
 
 export async function unpublishWorkflow(id: string): Promise<Workflow> {
-  const res: ApiResponse<Workflow> = await apiClient.post(`/workflows/${id}/unpublish`);
+  const res: ApiResponse<Workflow> = await engineApiClient.post(`/workflows/${id}/unpublish`);
   return unwrap(res);
 }
 
@@ -111,7 +116,7 @@ export async function unpublishWorkflow(id: string): Promise<Workflow> {
 // ---------------------------------------------------------------------------
 
 export async function runWorkflow(id: string): Promise<RunWorkflowResponse> {
-  const res: ApiResponse<RunWorkflowResponse> = await apiClient.post(`/workflows/${id}/run`, {});
+  const res: ApiResponse<RunWorkflowResponse> = await engineApiClient.post(`/workflows/${id}/run`, {});
   return unwrap(res);
 }
 
@@ -119,7 +124,7 @@ export async function testRunWorkflow(
   id: string,
   payload: { message?: string; modelId?: string } = {},
 ): Promise<RunWorkflowResponse> {
-  const res: ApiResponse<RunWorkflowResponse> = await apiClient.post(`/workflows/${id}/test-run`, payload);
+  const res: ApiResponse<RunWorkflowResponse> = await engineApiClient.post(`/workflows/${id}/test-run`, payload);
   return unwrap(res);
 }
 
@@ -137,7 +142,7 @@ export async function fetchWorkflowRuns(
   workflowId: string,
   params: RunListParams = {},
 ): Promise<TaskSummaryListResponse> {
-  const res: ApiResponse<TaskSummary[] | PaginatedRaw<TaskSummary>> = await apiClient.get(
+  const res: ApiResponse<TaskSummary[] | PaginatedRaw<TaskSummary>> = await engineApiClient.get(
     `/workflows/${workflowId}/runs`,
     { params },
   );
@@ -145,7 +150,7 @@ export async function fetchWorkflowRuns(
 }
 
 export async function fetchRunDetail(taskId: string): Promise<RunDetail> {
-  const res: ApiResponse<RunDetail> = await apiClient.get(`/workflows/runs/${taskId}`);
+  const res: ApiResponse<RunDetail> = await engineApiClient.get(`/workflows/runs/${taskId}`);
   return unwrap(res);
 }
 
@@ -154,7 +159,7 @@ export async function fetchRunDetail(taskId: string): Promise<RunDetail> {
 // ---------------------------------------------------------------------------
 
 export async function checkDependencies(workflowId: string): Promise<DependencyItem[]> {
-  const res: ApiResponse<DependencyItem[]> = await apiClient.get(`/workflows/${workflowId}/dependencies`);
+  const res: ApiResponse<DependencyItem[]> = await engineApiClient.get(`/workflows/${workflowId}/dependencies`);
   return unwrap(res);
 }
 
@@ -169,7 +174,7 @@ interface GroupListParams {
 }
 
 export async function fetchGroups(params: GroupListParams = {}): Promise<WorkflowGroupListResponse> {
-  const res: ApiResponse<WorkflowGroup[] | PaginatedRaw<WorkflowGroup>> = await apiClient.get(
+  const res: ApiResponse<WorkflowGroup[] | PaginatedRaw<WorkflowGroup>> = await engineApiClient.get(
     '/workflow-groups',
     { params },
   );
@@ -177,32 +182,32 @@ export async function fetchGroups(params: GroupListParams = {}): Promise<Workflo
 }
 
 export async function fetchGroupById(id: string): Promise<WorkflowGroup> {
-  const res: ApiResponse<WorkflowGroup> = await apiClient.get(`/workflow-groups/${id}`);
+  const res: ApiResponse<WorkflowGroup> = await engineApiClient.get(`/workflow-groups/${id}`);
   return unwrap(res);
 }
 
 export async function createGroup(payload: CreateGroupPayload): Promise<WorkflowGroup> {
-  const res: ApiResponse<WorkflowGroup> = await apiClient.post('/workflow-groups', payload);
+  const res: ApiResponse<WorkflowGroup> = await engineApiClient.post('/workflow-groups', payload);
   return unwrap(res);
 }
 
 export async function updateGroup(id: string, payload: UpdateGroupPayload): Promise<WorkflowGroup> {
-  const res: ApiResponse<WorkflowGroup> = await apiClient.put(`/workflow-groups/${id}`, payload);
+  const res: ApiResponse<WorkflowGroup> = await engineApiClient.put(`/workflow-groups/${id}`, payload);
   return unwrap(res);
 }
 
 export async function deleteGroup(id: string): Promise<void> {
-  const res: ApiResponse<null> = await apiClient.delete(`/workflow-groups/${id}`);
+  const res: ApiResponse<null> = await engineApiClient.delete(`/workflow-groups/${id}`);
   unwrap(res);
 }
 
 export async function addWorkflowToGroup(groupId: string, workflowId: string): Promise<void> {
-  const res: ApiResponse<null> = await apiClient.post(`/workflow-groups/${groupId}/workflows/${workflowId}`);
+  const res: ApiResponse<null> = await engineApiClient.post(`/workflow-groups/${groupId}/workflows/${workflowId}`);
   unwrap(res);
 }
 
 export async function removeWorkflowFromGroup(groupId: string, workflowId: string): Promise<void> {
-  const res: ApiResponse<null> = await apiClient.delete(`/workflow-groups/${groupId}/workflows/${workflowId}`);
+  const res: ApiResponse<null> = await engineApiClient.delete(`/workflow-groups/${groupId}/workflows/${workflowId}`);
   unwrap(res);
 }
 
@@ -210,7 +215,7 @@ export async function fetchGroupWorkflows(
   groupId: string,
   params: { page?: number; size?: number } = {},
 ): Promise<WorkflowListResponse> {
-  const res: ApiResponse<WorkflowSummary[] | PaginatedRaw<WorkflowSummary>> = await apiClient.get(
+  const res: ApiResponse<WorkflowSummary[] | PaginatedRaw<WorkflowSummary>> = await engineApiClient.get(
     `/workflow-groups/${groupId}/workflows`,
     { params },
   );
@@ -218,7 +223,7 @@ export async function fetchGroupWorkflows(
 }
 
 export async function fetchWorkflowGroups(workflowId: string): Promise<WorkflowGroup[]> {
-  const res: ApiResponse<WorkflowGroup[]> = await apiClient.get(`/workflow-groups/by-workflow/${workflowId}`);
+  const res: ApiResponse<WorkflowGroup[]> = await engineApiClient.get(`/workflow-groups/by-workflow/${workflowId}`);
   return unwrap(res);
 }
 
@@ -236,6 +241,7 @@ export interface McpServerTool {
 
 export interface McpServerCatalog {
   id: string;
+  serverCode: string;
   name: string;
   description?: string;
   icon?: string;
@@ -247,6 +253,6 @@ export interface McpServerCatalog {
 }
 
 export async function fetchMcpServers(): Promise<McpServerCatalog[]> {
-  const res: ApiResponse<McpServerCatalog[]> = await apiClient.get('/mcp/user/mcp-servers');
+  const res: ApiResponse<McpServerCatalog[]> = await mcpApiClient.get('/mcp/user/mcp-servers');
   return unwrap(res);
 }

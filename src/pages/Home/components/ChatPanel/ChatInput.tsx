@@ -5,56 +5,41 @@ import {
   useState,
 } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import {
-  ArrowUp,
-  Plus,
-  Square,
-} from 'lucide-react';
-import { useChatStore } from '@/stores/chatStore';
+import { ArrowUp, Square } from 'lucide-react';
 import { useWorkflowRuntimeStore } from '@/stores/workflowRuntimeStore';
 import { cn } from '@/lib/utils';
-import AgentSelector from '../AgentSelector';
 import ModelSelector from '../ModelSelector';
-import {
-  CHAT_MODES,
-  ENABLE_MODE_BURST,
-  MODE_BURST_COLOR,
-  MODE_GLOW,
-  MODE_TAB_ACTIVE,
-} from './chatInputConfig';
+import ToolsPicker from '../ToolsPicker';
+import WorkflowPicker from '../WorkflowPicker';
+import { InputTagList } from './InputTagList';
+import { buildCapabilities } from './capabilityTypes';
+import type { ToolSelection, SelectedWorkflow } from './capabilityTypes';
+
+export interface ChatInputMeta {
+  capabilities?: string[];
+}
 
 interface ChatInputProps {
-  onSend: (content: string) => void;
+  onSend: (content: string, meta?: ChatInputMeta) => void;
   isLoading: boolean;
   onStop: () => void;
 }
 
 export function ChatInput({ onSend, isLoading, onStop }: ChatInputProps) {
   const [value, setValue] = useState('');
-  const [burstKey, setBurstKey] = useState(0);
+  const [selectedTools, setSelectedTools] = useState<ToolSelection[]>([]);
+  const [selectedWorkflow, setSelectedWorkflow] = useState<SelectedWorkflow | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const prevModeRef = useRef<string | null>(null);
 
-  const chatMode = useChatStore((s) => s.chatMode);
-  const setChatMode = useChatStore((s) => s.setChatMode);
   const workflowPhase = useWorkflowRuntimeStore((s) => s.phase);
   const workflowStatus = useWorkflowRuntimeStore((s) => s.status);
   const currentStepId = useWorkflowRuntimeStore((s) => s.currentStepId);
   const steps = useWorkflowRuntimeStore((s) => s.steps);
   const currentStep = steps.find((step) => step.id === currentStepId);
 
-  useEffect(() => {
-    if (prevModeRef.current !== chatMode && chatMode !== 'auto') {
-      setBurstKey((key) => key + 1);
-    }
-    prevModeRef.current = chatMode;
-  }, [chatMode]);
-
   const resetHeight = useCallback(() => {
     const el = textareaRef.current;
-    if (el) {
-      el.style.height = 'auto';
-    }
+    if (el) el.style.height = 'auto';
   }, []);
 
   const adjustHeight = useCallback(() => {
@@ -68,10 +53,16 @@ export function ChatInput({ onSend, isLoading, onStop }: ChatInputProps) {
   const handleSubmit = useCallback(() => {
     const trimmed = value.trim();
     if (!trimmed || isLoading) return;
-    onSend(trimmed);
+
+    const caps = buildCapabilities(selectedTools, selectedWorkflow);
+    const meta: ChatInputMeta | undefined = caps.length > 0 ? { capabilities: caps } : undefined;
+    onSend(trimmed, meta);
+
     setValue('');
+    setSelectedTools([]);
+    setSelectedWorkflow(null);
     resetHeight();
-  }, [value, isLoading, onSend, resetHeight]);
+  }, [value, isLoading, onSend, selectedTools, selectedWorkflow, resetHeight]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -83,6 +74,14 @@ export function ChatInput({ onSend, isLoading, onStop }: ChatInputProps) {
   useEffect(() => {
     adjustHeight();
   }, [value, adjustHeight]);
+
+  const handleRemoveTool = useCallback((index: number) => {
+    setSelectedTools((prev) => prev.filter((_, i) => i !== index));
+  }, []);
+
+  const handleRemoveWorkflow = useCallback(() => {
+    setSelectedWorkflow(null);
+  }, []);
 
   const canSend = value.trim().length > 0 && !isLoading;
   const showCanvasHint = workflowPhase === 'live' || workflowPhase === 'review';
@@ -96,25 +95,12 @@ export function ChatInput({ onSend, isLoading, onStop }: ChatInputProps) {
     <div className="px-4 pb-4 pt-2">
       <div className="mx-auto max-w-3xl">
         <div className="relative">
-          <AnimatePresence>
-            {ENABLE_MODE_BURST && chatMode !== 'auto' && burstKey > 0 && (
-              <motion.div
-                key={`burst-${burstKey}`}
-                initial={{ opacity: 0.6, scale: 1 }}
-                animate={{ opacity: 0, scale: 1.03 }}
-                transition={{ duration: 0.5, ease: 'easeOut' }}
-                className="pointer-events-none absolute inset-0 z-10 rounded-2xl"
-                style={{ boxShadow: `0 0 0 2px ${MODE_BURST_COLOR[chatMode]}` }}
-              />
-            )}
-          </AnimatePresence>
-
           <div
             className={cn(
               'relative flex flex-col rounded-2xl border border-border/50',
               'bg-background transition-all duration-300',
               'focus-within:border-border',
-              MODE_GLOW[chatMode],
+              'shadow-[0_1px_8px_rgba(0,0,0,0.04)] focus-within:shadow-[0_2px_16px_rgba(0,0,0,0.06)]',
               workflowStatus === 'waiting' && 'border-amber-200 bg-amber-50/50',
             )}
           >
@@ -145,25 +131,12 @@ export function ChatInput({ onSend, isLoading, onStop }: ChatInputProps) {
               </div>
             )}
 
-            <div className="px-4 pt-3 pb-0.5">
-              <div className="inline-flex items-center gap-0.5 rounded-lg bg-muted/40 p-0.5">
-                {CHAT_MODES.map((mode) => (
-                  <button
-                    key={mode.value}
-                    type="button"
-                    onClick={() => setChatMode(mode.value)}
-                    className={cn(
-                      'rounded-md px-2.5 py-1 text-[11px] font-medium transition-all',
-                      chatMode === mode.value
-                        ? MODE_TAB_ACTIVE[mode.value]
-                        : 'text-muted-foreground/50 hover:text-muted-foreground',
-                    )}
-                  >
-                    {mode.label}
-                  </button>
-                ))}
-              </div>
-            </div>
+            <InputTagList
+              tools={selectedTools}
+              workflow={selectedWorkflow}
+              onRemoveTool={handleRemoveTool}
+              onRemoveWorkflow={handleRemoveWorkflow}
+            />
 
             <textarea
               ref={textareaRef}
@@ -174,27 +147,21 @@ export function ChatInput({ onSend, isLoading, onStop }: ChatInputProps) {
               rows={1}
               disabled={isLoading}
               className={cn(
-                'w-full resize-none bg-transparent px-5 pt-3 pb-1 text-sm leading-relaxed',
+                'w-full resize-none bg-transparent px-5 pt-4 pb-1 text-sm leading-relaxed',
                 'outline-none placeholder:text-muted-foreground/40',
                 'disabled:opacity-60 max-h-[200px]',
+                (selectedTools.length > 0 || selectedWorkflow) && 'pt-2',
               )}
             />
 
             <div className="flex items-center justify-between px-3 pb-2.5 pt-1">
-              <button
-                type="button"
-                className={cn(
-                  'flex h-7 w-7 items-center justify-center rounded-lg',
-                  'text-muted-foreground/40 hover:text-muted-foreground hover:bg-accent/60',
-                  'transition-colors active:scale-95',
-                )}
-              >
-                <Plus size={16} strokeWidth={1.8} />
-              </button>
+              <div className="flex items-center gap-0.5">
+                <ToolsPicker selections={selectedTools} onChange={setSelectedTools} />
+                <WorkflowPicker selected={selectedWorkflow} onChange={setSelectedWorkflow} />
+              </div>
 
               <div className="flex items-center gap-1.5">
-                {chatMode === 'model' && <ModelSelector />}
-                {chatMode === 'agent' && <AgentSelector />}
+                <ModelSelector />
 
                 <AnimatePresence mode="wait">
                   {isLoading ? (

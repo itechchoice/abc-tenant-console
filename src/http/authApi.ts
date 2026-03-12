@@ -1,4 +1,4 @@
-import { apiClient, type ApiResponse, unwrap } from './client';
+import { authApiClient, type ApiResponse, unwrap } from './client';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -22,6 +22,6 @@ export interface LoginData {
 // ---------------------------------------------------------------------------
 
 export async function login(credentials: LoginCredentials): Promise<LoginData> {
-  const res: ApiResponse<LoginData> = await apiClient.post('/auth/login', credentials);
+  const res: ApiResponse<LoginData> = await authApiClient.post('/auth/login', credentials);
   return unwrap(res);
 }

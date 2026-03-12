@@ -1,4 +1,4 @@
-import { apiClient, type ApiResponse, unwrap } from './client';
+import { llmGatewayApiClient, type ApiResponse, unwrap } from './client';
 import type {
   Quota,
   CreateQuotaPayload,
@@ -17,12 +17,12 @@ import type {
 const QUOTAS = '/admin/quotas';
 
 export async function fetchQuotas(): Promise<Quota[]> {
-  const res: ApiResponse<Quota[]> = await apiClient.get(QUOTAS);
+  const res: ApiResponse<Quota[]> = await llmGatewayApiClient.get(QUOTAS);
   return unwrap(res);
 }
 
 export async function createQuota(payload: CreateQuotaPayload): Promise<Quota> {
-  const res: ApiResponse<Quota> = await apiClient.post(QUOTAS, payload);
+  const res: ApiResponse<Quota> = await llmGatewayApiClient.post(QUOTAS, payload);
   return unwrap(res);
 }
 
@@ -32,12 +32,12 @@ export async function updateQuota(id: string, payload: CreateQuotaPayload): Prom
 }
 
 export async function deleteQuota(id: string): Promise<void> {
-  const res: ApiResponse<null> = await apiClient.delete(`${QUOTAS}/${id}`);
+  const res: ApiResponse<null> = await llmGatewayApiClient.delete(`${QUOTAS}/${id}`);
   unwrap(res);
 }
 
 export async function resetQuota(id: string): Promise<Quota> {
-  const res: ApiResponse<Quota> = await apiClient.post(`${QUOTAS}/${id}/reset`);
+  const res: ApiResponse<Quota> = await llmGatewayApiClient.post(`${QUOTAS}/${id}/reset`);
   return unwrap(res);
 }
 
@@ -48,17 +48,17 @@ export async function resetQuota(id: string): Promise<Quota> {
 const RATE_LIMITS = '/admin/rate-limits';
 
 export async function fetchRateLimits(): Promise<RateLimitRule[]> {
-  const res: ApiResponse<RateLimitRule[]> = await apiClient.get(RATE_LIMITS);
+  const res: ApiResponse<RateLimitRule[]> = await llmGatewayApiClient.get(RATE_LIMITS);
   return unwrap(res);
 }
 
 export async function createRateLimit(payload: CreateRateLimitPayload): Promise<RateLimitRule> {
-  const res: ApiResponse<RateLimitRule> = await apiClient.post(RATE_LIMITS, payload);
+  const res: ApiResponse<RateLimitRule> = await llmGatewayApiClient.post(RATE_LIMITS, payload);
   return unwrap(res);
 }
 
 export async function deleteRateLimit(id: string): Promise<void> {
-  const res: ApiResponse<null> = await apiClient.delete(`${RATE_LIMITS}/${id}`);
+  const res: ApiResponse<null> = await llmGatewayApiClient.delete(`${RATE_LIMITS}/${id}`);
   unwrap(res);
 }
 
@@ -69,28 +69,28 @@ export async function deleteRateLimit(id: string): Promise<void> {
 const USAGE = '/admin/usage';
 
 export async function fetchUsageSummary(start: string, end: string): Promise<UsageSummary> {
-  const res: ApiResponse<UsageSummary> = await apiClient.get(`${USAGE}/summary`, {
+  const res: ApiResponse<UsageSummary> = await llmGatewayApiClient.get(`${USAGE}/summary`, {
     params: { start, end },
   });
   return unwrap(res);
 }
 
 export async function fetchUsageByModel(start: string, end: string): Promise<UsageByModel[]> {
-  const res: ApiResponse<UsageByModel[]> = await apiClient.get(`${USAGE}/by-model`, {
+  const res: ApiResponse<UsageByModel[]> = await llmGatewayApiClient.get(`${USAGE}/by-model`, {
     params: { start, end },
   });
   return unwrap(res);
 }
 
 export async function fetchUsageByProvider(start: string, end: string): Promise<UsageByProvider[]> {
-  const res: ApiResponse<UsageByProvider[]> = await apiClient.get(`${USAGE}/by-provider`, {
+  const res: ApiResponse<UsageByProvider[]> = await llmGatewayApiClient.get(`${USAGE}/by-provider`, {
     params: { start, end },
   });
   return unwrap(res);
 }
 
 export async function fetchDailyTrend(start: string, end: string): Promise<DailyTrend[]> {
-  const res: ApiResponse<DailyTrend[]> = await apiClient.get(`${USAGE}/daily-trend`, {
+  const res: ApiResponse<DailyTrend[]> = await llmGatewayApiClient.get(`${USAGE}/daily-trend`, {
     params: { start, end },
   });
   return unwrap(res);

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { apiClient, type ApiResponse, unwrap } from './client';
+import { llmGatewayApiClient, type ApiResponse, unwrap } from './client';
 import { AssignedProviderSchema, type AssignedProvider } from '@/schemas/modelSchema';
 
 // ---------------------------------------------------------------------------
@@ -7,7 +7,7 @@ import { AssignedProviderSchema, type AssignedProvider } from '@/schemas/modelSc
 // ---------------------------------------------------------------------------
 
 export async function fetchAssignedProviders(): Promise<AssignedProvider[]> {
-  const res: ApiResponse<AssignedProvider[]> = await apiClient.get('/models/providers/assigned');
+  const res: ApiResponse<AssignedProvider[]> = await llmGatewayApiClient.get('/models/providers/assigned');
   const data = unwrap(res);
 
   try {

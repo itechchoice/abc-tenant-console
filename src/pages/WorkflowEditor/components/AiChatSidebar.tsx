@@ -7,12 +7,12 @@ import { X, Send, Sparkles, Eye, Loader2, Tag, ChevronDown, Check } from 'lucide
 import { cn } from '@/lib/utils';
 import { useAiViewStore } from '@/stores/aiViewStore';
 import { useChatStore } from '@/stores/chatStore';
-import { useAssignedModels } from '@/hooks/useModels';
+import { useChatModels } from '@/hooks/useModels';
 import { generateWorkflowStream } from '../mock/aiWorkflowMock';
 import StepsCard from './StepsCard';
 import type { CanvasAreaHandle } from '@itechchoice/mcp-fe-shared/workflow-editor';
 import { convertToReactFlow } from '@itechchoice/mcp-fe-shared/workflow-editor';
-import type { AssignedProvider } from '@/schemas/modelSchema';
+import type { ModelResponse } from '@/schemas/modelManagerSchema';
 
 interface NodeTag {
   id: string;
@@ -55,7 +55,7 @@ const AiChatSidebar = forwardRef<AiChatSidebarRef, AiChatSidebarProps>(
       setCurrentSnapshot, setActiveView,
     } = useAiViewStore();
 
-    const { data: models = [], isLoading: modelsLoading } = useAssignedModels();
+    const { data: models = [], isLoading: modelsLoading } = useChatModels();
     const selectedModel = useChatStore((s) => s.selectedModel);
     const setSelectedModel = useChatStore((s) => s.setSelectedModel);
 
@@ -70,7 +70,7 @@ const AiChatSidebar = forwardRef<AiChatSidebarRef, AiChatSidebarProps>(
       return () => document.removeEventListener('mousedown', handler);
     }, [modelOpen]);
 
-    const handleSelectModel = useCallback((model: AssignedProvider) => {
+    const handleSelectModel = useCallback((model: ModelResponse) => {
       setSelectedModel(model);
       setModelOpen(false);
     }, [setSelectedModel]);
@@ -323,7 +323,7 @@ const AiChatSidebar = forwardRef<AiChatSidebarRef, AiChatSidebarProps>(
               className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
             >
               <span className="truncate max-w-[200px]">
-                {modelsLoading ? 'Loading...' : (selectedModel?.name || 'Select model')}
+                {modelsLoading ? 'Loading...' : (selectedModel?.displayName || selectedModel?.modelId || 'Auto')}
               </span>
               <ChevronDown className={cn('h-3 w-3 transition-transform', modelOpen && 'rotate-180')} />
             </button>
@@ -340,7 +340,7 @@ const AiChatSidebar = forwardRef<AiChatSidebarRef, AiChatSidebarProps>(
                     )}
                   >
                     <Check className={cn('h-3 w-3 shrink-0', selectedModel?.id === m.id ? 'opacity-100' : 'opacity-0')} />
-                    <span className="truncate">{m.name}</span>
+                    <span className="truncate">{m.displayName || m.modelId}</span>
                   </button>
                 ))}
               </div>

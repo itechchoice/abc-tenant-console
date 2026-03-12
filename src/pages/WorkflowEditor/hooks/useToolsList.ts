@@ -6,5 +6,6 @@ export function useToolsList() {
   return useQuery<McpServerCatalog[]>({
     queryKey: workflowQueryKeys.tools(),
     queryFn: fetchMcpServers,
+    staleTime: 5 * 60 * 1000,
   });
 }

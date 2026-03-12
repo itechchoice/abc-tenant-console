@@ -1,4 +1,4 @@
-import { apiClient, type ApiResponse, unwrap } from './client';
+import { engineApiClient, type ApiResponse, unwrap } from './client';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -6,6 +6,7 @@ import { apiClient, type ApiResponse, unwrap } from './client';
 
 interface CreateTaskData {
   taskId: string;
+  sessionId: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -15,11 +16,11 @@ interface CreateTaskData {
 export async function createTask(
   payload: Record<string, unknown>,
 ): Promise<CreateTaskData> {
-  const res: ApiResponse<CreateTaskData> = await apiClient.post('/tasks', payload);
+  const res: ApiResponse<CreateTaskData> = await engineApiClient.post('/tasks', payload);
   return unwrap(res);
 }
 
 export async function cancelTask(taskId: string): Promise<void> {
-  const res: ApiResponse<null> = await apiClient.post(`/tasks/${taskId}/cancel`);
+  const res: ApiResponse<null> = await engineApiClient.post(`/tasks/${taskId}/cancel`);
   unwrap(res);
 }

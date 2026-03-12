@@ -1,21 +1,24 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { fetchEventSource, EventStreamContentType } from '@microsoft/fetch-event-source';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from '@/components/ui/select';
+import {
   Square, Loader2, CheckCircle2, XCircle, RotateCcw,
-  AlertTriangle, ShieldCheck, ShieldAlert, FlaskConical,
+  AlertTriangle, FlaskConical,
 } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
-import { Skeleton } from '@/components/ui/skeleton';
 import { useWorkflowEditorLocalStore } from '@/stores/workflowEditorStore';
 import { useNodeRuntimeStore } from '@itechchoice/mcp-fe-shared/workflow-editor';
 import type { CanvasAreaHandle } from '@itechchoice/mcp-fe-shared/workflow-editor';
 import { useTestRunWorkflow } from '../../hooks/useWorkflowRuns';
-import { useWorkflowDependencies } from '../../hooks/useWorkflowDependencies';
+import { useChatModels } from '@/hooks/useModels';
 import { useAuthStore } from '@/stores/authStore';
-import type { DependencyItem } from '@/schemas/workflowEditorSchema';
+import { engineApiBaseUrl } from '@/http/client';
+import DependenciesTab from './DependenciesTab';
 
 interface RunDrawerProps {
   workflowId?: string;
@@ -40,14 +43,13 @@ export default function RunDrawer({ workflowId, canvasRef }: RunDrawerProps) {
   const [runState, setRunState] = useState<RunState>('idle');
   const [messages, setMessages] = useState<RunMessage[]>([]);
   const [testMessage, setTestMessage] = useState('');
+  const [selectedModelId, setSelectedModelId] = useState<string>('');
   const [activeTab, setActiveTab] = useState<string>('run');
-  const eventSourceRef = useRef<EventSource | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Dependencies
+  const { data: models = [], isLoading: modelsLoading } = useChatModels();
   const [depsChecked, setDepsChecked] = useState(false);
-  const { data: dependencies, isLoading: depsLoading, refetch: recheckDeps } =
-    useWorkflowDependencies(workflowId, depsChecked);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -55,7 +57,7 @@ export default function RunDrawer({ workflowId, canvasRef }: RunDrawerProps) {
 
   useEffect(() => {
     if (!runDrawerOpen) {
-      eventSourceRef.current?.close();
+      abortRef.current?.abort();
     }
   }, [runDrawerOpen]);
 
@@ -75,62 +77,87 @@ export default function RunDrawer({ workflowId, canvasRef }: RunDrawerProps) {
       { id: `task-${taskId}`, type: 'system', content: `Task ${taskId} (session ${sessionId}) created` },
     ]);
 
-    const token = useAuthStore.getState().token;
-    const baseUrl = import.meta.env.VITE_API_BASE_URL || '/tenant-console-api';
-    const url = `${baseUrl}/tasks/${taskId}/events${token ? `?token=${encodeURIComponent(token)}` : ''}`;
+    abortRef.current?.abort();
+    const ctrl = new AbortController();
+    abortRef.current = ctrl;
 
-    const es = new EventSource(url);
-    eventSourceRef.current = es;
+    const { token, userInfo } = useAuthStore.getState();
+    const url = `${engineApiBaseUrl}/tasks/${taskId}/events`;
 
-    es.onmessage = (evt) => {
-      try {
-        const data = JSON.parse(evt.data);
-        const nodeId = data.nodeId as string | undefined;
-        const status = data.status as string | undefined;
-        const content = data.message || data.content || JSON.stringify(data);
-
-        if (nodeId && status) {
-          setNodeState(nodeId, { status, triggerType: 'execution' });
-          focusNode(nodeId);
+    fetchEventSource(url, {
+      signal: ctrl.signal,
+      openWhenHidden: true,
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(userInfo?.tenantId ? { 'X-Tenant-Id': userInfo.tenantId } : {}),
+      },
+      async onopen(response) {
+        if (response.ok && response.headers.get('content-type')?.includes(EventStreamContentType)) {
+          return;
         }
+        throw new Error(`SSE connection failed: ${response.status} ${response.statusText}`);
+      },
+      onmessage(evt) {
+        const eventType = evt.event;
+        try {
+          const data = JSON.parse(evt.data);
 
+          if (eventType === 'TASK_COMPLETED' || eventType === 'TASK_COMPLETE') {
+            setMessages((prev) => [
+              ...prev,
+              { id: 'done', type: 'result', content: 'Workflow execution finished.' },
+            ]);
+            setRunState('completed');
+            ctrl.abort();
+            return;
+          }
+
+          if (eventType === 'TASK_FAILED') {
+            const errMsg = data.error || data.message || 'Execution failed';
+            setMessages((prev) => [
+              ...prev,
+              { id: `err-${Date.now()}`, type: 'system', content: `Error: ${errMsg}` },
+            ]);
+            setRunState('error');
+            ctrl.abort();
+            return;
+          }
+
+          const nodeId = data.nodeId as string | undefined;
+          const status = data.status as string | undefined;
+          const content = data.message || data.content || JSON.stringify(data);
+
+          if (nodeId && status) {
+            setNodeState(nodeId, { status, triggerType: 'execution' });
+            focusNode(nodeId);
+          }
+
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: `sse-${Date.now()}-${Math.random()}`,
+              type: nodeId ? 'node' : 'system',
+              content: String(content),
+              nodeId,
+              status,
+            },
+          ]);
+        } catch { /* skip unparseable frames */ }
+      },
+      onclose() {
+        throw new Error('Stream ended');
+      },
+      onerror(err) {
+        if (ctrl.signal.aborted) return;
         setMessages((prev) => [
           ...prev,
-          {
-            id: `sse-${Date.now()}-${Math.random()}`,
-            type: nodeId ? 'node' : 'system',
-            content: String(content),
-            nodeId,
-            status,
-          },
+          { id: `err-${Date.now()}`, type: 'system', content: `SSE error: ${err instanceof Error ? err.message : 'Connection lost'}` },
         ]);
-      } catch { /* skip unparseable frames */ }
-    };
-
-    es.addEventListener('TASK_COMPLETED', () => {
-      setMessages((prev) => [
-        ...prev,
-        { id: 'done', type: 'result', content: 'Workflow execution finished.' },
-      ]);
-      setRunState('completed');
-      es.close();
+        setRunState('error');
+        ctrl.abort();
+        throw err;
+      },
     });
-
-    es.addEventListener('TASK_FAILED', (e) => {
-      const errMsg = (e as MessageEvent)?.data || 'Execution failed';
-      setMessages((prev) => [
-        ...prev,
-        { id: `err-${Date.now()}`, type: 'system', content: `Error: ${errMsg}` },
-      ]);
-      setRunState('error');
-      es.close();
-    });
-
-    es.onerror = () => {
-      if (es.readyState === EventSource.CLOSED) return;
-      setRunState('error');
-      es.close();
-    };
   }, [setNodeState, focusNode]);
 
   const startRun = useCallback(async () => {
@@ -145,6 +172,7 @@ export default function RunDrawer({ workflowId, canvasRef }: RunDrawerProps) {
       const result = await testRunMutation.mutateAsync({
         workflowId,
         message: testMessage.trim() || undefined,
+        modelId: selectedModelId || undefined,
       });
       subscribeSSE(result.taskId, result.sessionId);
     } catch (err) {
@@ -157,7 +185,7 @@ export default function RunDrawer({ workflowId, canvasRef }: RunDrawerProps) {
   }, [workflowId, testMessage, testRunMutation, clearAllNodeStates, subscribeSSE]);
 
   const handleStop = useCallback(() => {
-    eventSourceRef.current?.close();
+    abortRef.current?.abort();
     setRunState('idle');
     setMessages((prev) => [...prev, { id: 'abort', type: 'system', content: 'Execution stopped.' }]);
   }, []);
@@ -167,16 +195,18 @@ export default function RunDrawer({ workflowId, canvasRef }: RunDrawerProps) {
     setMessages([]);
     setRunState('idle');
     setTestMessage('');
+    setSelectedModelId('');
   }, [clearAllNodeStates]);
 
   const handleClose = useCallback(() => {
-    eventSourceRef.current?.close();
+    abortRef.current?.abort();
     clearAllNodeStates();
     closeRunDrawer();
     setMessages([]);
     setRunState('idle');
     setDepsChecked(false);
     setTestMessage('');
+    setSelectedModelId('');
   }, [clearAllNodeStates, closeRunDrawer]);
 
   return (
@@ -236,12 +266,26 @@ export default function RunDrawer({ workflowId, canvasRef }: RunDrawerProps) {
 
             <div className="border-t p-4 space-y-3 shrink-0">
               {runState === 'idle' && (
-                <Input
-                  placeholder="Test message (optional)..."
-                  value={testMessage}
-                  onChange={(e) => setTestMessage(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Enter') startRun(); }}
-                />
+                <div className="space-y-2">
+                  <Select value={selectedModelId} onValueChange={setSelectedModelId}>
+                    <SelectTrigger className="h-8 text-xs">
+                      <SelectValue placeholder={modelsLoading ? 'Loading models...' : 'Auto (default model)'} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {models.map((m) => (
+                        <SelectItem key={m.id} value={m.modelId} className="text-xs">
+                          {m.displayName || m.modelId}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Input
+                    placeholder="Test message (optional)..."
+                    value={testMessage}
+                    onChange={(e) => setTestMessage(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') startRun(); }}
+                  />
+                </div>
               )}
               <div className="flex items-center gap-2">
                 {runState === 'idle' && (
@@ -273,40 +317,12 @@ export default function RunDrawer({ workflowId, canvasRef }: RunDrawerProps) {
           </TabsContent>
 
           {/* ─── Dependencies Tab ─── */}
-          <TabsContent value="deps" className="flex-1 overflow-auto p-4 mt-0">
-            <div className="flex items-center justify-between mb-3">
-              <h4 className="text-sm font-medium">MCP Server Dependencies</h4>
-              <Button variant="outline" size="sm" onClick={() => { setDepsChecked(true); recheckDeps(); }} disabled={depsLoading}>
-                {depsLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : null}
-                Check
-              </Button>
-            </div>
-            {!depsChecked ? (
-              <p className="text-sm text-muted-foreground text-center py-8">
-                Click "Check" to verify MCP server authorization status.
-              </p>
-            ) : depsLoading ? (
-              <div className="space-y-2">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-10 rounded-lg" />)}</div>
-            ) : !dependencies?.length ? (
-              <p className="text-sm text-muted-foreground text-center py-8">No MCP dependencies found.</p>
-            ) : (
-              <div className="space-y-2">
-                {dependencies.map((dep: DependencyItem) => (
-                  <div key={dep.serverCode} className="flex items-center justify-between border rounded-lg px-3 py-2">
-                    <span className="text-sm font-mono">{dep.serverCode}</span>
-                    {dep.authorized ? (
-                      <Badge variant="outline" className="text-emerald-600 border-emerald-300">
-                        <ShieldCheck className="h-3 w-3 mr-1" />Authorized
-                      </Badge>
-                    ) : (
-                      <Badge variant="outline" className="text-amber-600 border-amber-300">
-                        <ShieldAlert className="h-3 w-3 mr-1" />Unauthorized
-                      </Badge>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
+          <TabsContent value="deps" className="flex-1 overflow-auto mt-0">
+            <DependenciesTab
+              workflowId={workflowId}
+              depsChecked={depsChecked}
+              onCheckTriggered={() => setDepsChecked(true)}
+            />
           </TabsContent>
         </Tabs>
       </SheetContent>

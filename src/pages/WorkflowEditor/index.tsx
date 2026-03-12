@@ -2,14 +2,12 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Node } from '@xyflow/react';
 import { CanvasArea, ToolsSidebar, FilterPanel, convertToReactFlow, convertToDsl, type CanvasAreaHandle } from '@itechchoice/mcp-fe-shared/workflow-editor';
 import { NodePropertyDrawer } from '@itechchoice/mcp-fe-shared';
-import { Sparkles } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Button } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
 import { useWorkflowEditorLocalStore } from '@/stores/workflowEditorStore';
 import { useAiViewStore } from '@/stores/aiViewStore';
 import { useWorkflowEditor } from './hooks/useWorkflowEditor';
 import { useToolsList } from './hooks/useToolsList';
+import { useChatModels } from '@/hooks/useModels';
 import EditorTopBar from './components/EditorTopBar';
 import EditWorkflowInfoDialog from './components/EditWorkflowInfoDialog';
 import CodeEditorPanel from './components/CodeEditorPanel';
@@ -34,12 +32,20 @@ function WorkflowEditorInner() {
   const { openRunDrawer, setDirty, codeEditorOpen, toggleCodeEditor } = useWorkflowEditorLocalStore();
   const { activeView, aiWorkflow, currentSnapshot, apply: aiApply, discard: aiDiscard, reset: aiReset } = useAiViewStore();
   const { data: tools, isLoading: toolsLoading } = useToolsList();
+  const { data: models = [] } = useChatModels();
 
   const [dslJson, setDslJson] = useState('');
   const [selectedNode, setSelectedNode] = useState<Record<string, unknown> | null>(null);
   const internalCanvasRef = useRef<CanvasAreaHandle>(null);
   const aiChatRef = useRef<AiChatSidebarRef>(null);
   const readOnlyCodeKeys = useMemo(() => getReadOnlyDslPaths(), []);
+
+  const nodeFields = useMemo(() => NODE_FIELDS.map((f) => {
+    if (f.key === 'data.modelId') {
+      return { ...f, options: models.map((m) => ({ label: m.displayName || m.modelId, value: m.modelId })) };
+    }
+    return f;
+  }), [models]);
 
   // AI Chat state
   const [aiChatOpen, setAiChatOpen] = useState(false);
@@ -56,10 +62,14 @@ function WorkflowEditorInner() {
     }
   });
 
-  // Hydrate API edges (source/target only) with React Flow–required `id`
-  const hydrateEdgeIds = useCallback((def: DslGraph): DslGraph & { edges: Array<ApiEdge & { id: string }> } => {
+  // Ensure every node has a valid position and hydrate edge ids
+  const normalizeDefinition = useCallback((def: DslGraph): DslGraph & { edges: Array<ApiEdge & { id: string }> } => {
     return {
       ...def,
+      nodes: (def.nodes ?? []).map((n, i) => ({
+        ...n,
+        position: n.position ?? { x: 100 + i * 200, y: 100 },
+      })),
       edges: (def.edges ?? []).map((e, i) => ({
         ...e,
         id: `e-${e.source}-${e.target}-${i}`,
@@ -71,15 +81,16 @@ function WorkflowEditorInner() {
   useEffect(() => {
     if (workflow?.definition && internalCanvasRef.current) {
       try {
-        const hydrated = hydrateEdgeIds(workflow.definition);
+        const normalized = normalizeDefinition(workflow.definition);
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const flowData = convertToReactFlow(hydrated as any);
+        const flowData = convertToReactFlow(normalized as any);
         internalCanvasRef.current.loadWorkflow(flowData);
       } catch {
-        internalCanvasRef.current.loadWorkflow(workflow.definition as never);
+        const fallback = normalizeDefinition(workflow.definition);
+        internalCanvasRef.current.loadWorkflow(fallback as never);
       }
     }
-  }, [workflow?.definition, hydrateEdgeIds]);
+  }, [workflow?.definition, normalizeDefinition]);
 
   // Sync DSL JSON for code editor
   useEffect(() => {
@@ -88,16 +99,16 @@ function WorkflowEditorInner() {
     }
   }, [workflow?.definition]);
 
-  // ────── AI Chat open/close ──────
-  const handleOpenAiChat = useCallback(() => {
-    if (!aiChatOpen) {
-      if (selectedCategory) setSelectedCategory(null);
-      setAiChatOpen(true);
-    } else {
-      setAiChatOpen(false);
-      setAiSelectedNodes([]);
-    }
-  }, [aiChatOpen, selectedCategory]);
+  // ────── AI Chat open/close (entry temporarily hidden, keep logic for later) ──────
+  // const handleOpenAiChat = useCallback(() => {
+  //   if (!aiChatOpen) {
+  //     if (selectedCategory) setSelectedCategory(null);
+  //     setAiChatOpen(true);
+  //   } else {
+  //     setAiChatOpen(false);
+  //     setAiSelectedNodes([]);
+  //   }
+  // }, [aiChatOpen, selectedCategory]);
 
   const handleCloseAiChat = useCallback(() => {
     setAiChatOpen(false);
@@ -260,26 +271,18 @@ function WorkflowEditorInner() {
         name: t.name,
         toolId: t.name,
         description: t.description,
+        tool: `${server.serverCode}:${t.name}`,
       })),
     }));
   }, [tools]);
 
-  // ────── BottomToolbar items with AI button ──────
+  // ────── BottomToolbar items (AI entry temporarily hidden) ──────
   const bottomToolbarItems = useMemo(() => [
     'logic',
-    <Button
-    key="ai"
-    variant="ghost"
-    size="icon"
-    className="h-8 w-8 cursor-pointer"
-    onClick={handleOpenAiChat}
-  >
-    <Sparkles className={cn('h-4 w-4', aiChatOpen ? 'text-primary' : 'text-[#5a607f]')} />
-  </Button>,
-   '|', 'undo', 'redo', '|',
+    '|', 'undo', 'redo', '|',
     'zoom-in', 'zoom-out', 'fit-view', 'code',
     'tools',
-  ] as const, [handleOpenAiChat, aiChatOpen]);
+  ] as const, []);
 
   if (isLoading) {
     return (
@@ -356,7 +359,7 @@ function WorkflowEditorInner() {
           {selectedNode && (
             <NodePropertyDrawer
               node={selectedNode}
-              fields={NODE_FIELDS}
+              fields={nodeFields}
               groups={NODE_PROPERTY_GROUPS}
               onClose={handleNodePropertyClose}
               onSave={handleNodePropertySave}

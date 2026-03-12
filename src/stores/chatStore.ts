@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import type { Message } from '@/schemas/chatSchema';
-import type { AssignedProvider } from '@/schemas/modelSchema';
+import type { ModelResponse } from '@/schemas/modelManagerSchema';
 
 interface ChatState {
   messages: Message[];
@@ -14,9 +14,8 @@ interface ChatState {
   hasMore: boolean;
   isLoadingMore: boolean;
   isHistoricalTrack: boolean;
-  selectedModel: AssignedProvider | null;
-  chatMode: 'auto' | 'agent' | 'model';
-  selectedAgentId: string | null;
+  selectedModel: ModelResponse | null;
+  chatMode: 'model';
 }
 
 interface ChatActions {
@@ -35,15 +34,13 @@ interface ChatActions {
   setIsLoadingMore: (flag: boolean) => void;
   prependMessages: (olderMessages: Message[]) => void;
   setHistoricalTrack: (flag: boolean) => void;
-  setSelectedModel: (model: AssignedProvider | null) => void;
-  setChatMode: (mode: 'auto' | 'agent' | 'model') => void;
-  setSelectedAgentId: (id: string | null) => void;
+  setSelectedModel: (model: ModelResponse | null) => void;
   clearChat: () => void;
 }
 
 type ChatStore = ChatState & ChatActions;
 
-const INITIAL_STATE: Omit<ChatState, 'selectedModel' | 'chatMode' | 'selectedAgentId'> = {
+const INITIAL_STATE: Omit<ChatState, 'selectedModel'> = {
   messages: [],
   isTyping: false,
   currentSessionId: null,
@@ -55,13 +52,12 @@ const INITIAL_STATE: Omit<ChatState, 'selectedModel' | 'chatMode' | 'selectedAge
   hasMore: false,
   isLoadingMore: false,
   isHistoricalTrack: false,
+  chatMode: 'model',
 };
 
 export const useChatStore = create<ChatStore>((set) => ({
   ...INITIAL_STATE,
   selectedModel: null,
-  chatMode: 'auto',
-  selectedAgentId: null,
 
   setMessages: (messages) => set({ messages }),
 
@@ -99,10 +95,6 @@ export const useChatStore = create<ChatStore>((set) => ({
   setHistoricalTrack: (flag) => set({ isHistoricalTrack: flag }),
 
   setSelectedModel: (model) => set({ selectedModel: model }),
-
-  setChatMode: (mode) => set({ chatMode: mode }),
-
-  setSelectedAgentId: (id) => set({ selectedAgentId: id }),
 
   clearChat: () => set(INITIAL_STATE),
 }));

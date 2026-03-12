@@ -2,31 +2,20 @@ import {
   useState, useRef, useEffect, useCallback, memo,
 } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronDown, Check, Loader2 } from 'lucide-react';
-import { useAssignedModels } from '@/hooks/useModels';
+import { ChevronDown, Check, Loader2, Sparkles } from 'lucide-react';
+import { useChatModels } from '@/hooks/useModels';
 import { useChatStore } from '@/stores/chatStore';
 import { cn } from '@/lib/utils';
-import type { AssignedProvider } from '@/schemas/modelSchema';
-
-// ---------------------------------------------------------------------------
-// Provider type badge
-// ---------------------------------------------------------------------------
-
-const TYPE_LABELS: Record<string, string> = {
-  openai: 'OpenAI',
-  anthropic: 'Anthropic',
-  azure: 'Azure',
-  custom: 'Custom',
-};
+import type { ModelResponse } from '@/schemas/modelManagerSchema';
 
 // ---------------------------------------------------------------------------
 // Dropdown item
 // ---------------------------------------------------------------------------
 
 interface ModelOptionProps {
-  model: AssignedProvider;
+  model: ModelResponse;
   isSelected: boolean;
-  onSelect: (model: AssignedProvider) => void;
+  onSelect: (model: ModelResponse) => void;
 }
 
 const ModelOption = memo(({ model, isSelected, onSelect }: ModelOptionProps) => (
@@ -42,9 +31,11 @@ const ModelOption = memo(({ model, isSelected, onSelect }: ModelOptionProps) => 
     )}
   >
     <div className="flex flex-1 flex-col gap-0.5 min-w-0">
-      <span className="text-xs font-medium truncate">{model.name}</span>
+      <span className="text-xs font-medium truncate">
+        {model.displayName || model.modelId}
+      </span>
       <span className="text-[10px] text-muted-foreground/50">
-        {TYPE_LABELS[model.type] || model.type}
+        {model.modelId}
       </span>
     </div>
     {isSelected && (
@@ -58,15 +49,11 @@ ModelOption.displayName = 'ModelOption';
 // ModelSelector
 // ---------------------------------------------------------------------------
 
-/**
- * Inline text trigger + upward popover for selecting the active LLM provider.
- * Designed to sit inside the ChatInput bottom toolbar — opens **upward**.
- */
 export default function ModelSelector() {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const { data: models = [], isLoading, isError } = useAssignedModels();
+  const { data: models = [], isLoading, isError } = useChatModels();
   const selectedModel = useChatStore((s) => s.selectedModel);
   const setSelectedModel = useChatStore((s) => s.setSelectedModel);
 
@@ -81,28 +68,31 @@ export default function ModelSelector() {
     return () => document.removeEventListener('mousedown', handler);
   }, [open]);
 
-  const handleSelect = useCallback((model: AssignedProvider) => {
+  const handleSelect = useCallback((model: ModelResponse) => {
     setSelectedModel(model);
     setOpen(false);
   }, [setSelectedModel]);
 
+  const handleSelectAuto = useCallback(() => {
+    setSelectedModel(null);
+    setOpen(false);
+  }, [setSelectedModel]);
+
   const disabled = isLoading || (isError && models.length === 0);
-  const empty = !isLoading && !isError && models.length === 0;
 
   const label = isLoading
     ? 'Loading...'
     : isError
       ? 'Unavailable'
-      : empty
-        ? 'No models'
-        : (selectedModel?.name || 'Select model');
+      : selectedModel
+        ? (selectedModel.displayName || selectedModel.modelId)
+        : 'Auto';
 
   return (
     <div ref={containerRef} className="relative">
-      {/* ── Trigger: plain inline text ────────────────────────────── */}
       <button
         type="button"
-        disabled={disabled || empty}
+        disabled={disabled}
         onClick={() => setOpen((v) => !v)}
         className={cn(
           'flex items-center gap-0.5 rounded py-0.5 px-1 -mx-1',
@@ -114,6 +104,9 @@ export default function ModelSelector() {
         {isLoading && (
           <Loader2 size={11} className="mr-0.5 animate-spin" />
         )}
+        {!isLoading && !selectedModel && (
+          <Sparkles size={11} className="mr-0.5 text-primary/50" />
+        )}
         <span>{label}</span>
         <ChevronDown
           size={11}
@@ -124,9 +117,8 @@ export default function ModelSelector() {
         />
       </button>
 
-      {/* ── Dropdown: opens upward ────────────────────────────────── */}
       <AnimatePresence>
-        {open && models.length > 0 && (
+        {open && (
           <motion.div
             initial={{ opacity: 0, y: 6, scale: 0.97 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -138,14 +130,42 @@ export default function ModelSelector() {
               'shadow-[0_-4px_24px_rgba(0,0,0,0.08)]',
             )}
           >
-            {models.map((model) => (
-              <ModelOption
-                key={model.id}
-                model={model}
-                isSelected={selectedModel?.id === model.id}
-                onSelect={handleSelect}
-              />
-            ))}
+            <button
+              type="button"
+              onClick={handleSelectAuto}
+              className={cn(
+                'flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left',
+                'transition-colors',
+                !selectedModel
+                  ? 'bg-accent text-accent-foreground'
+                  : 'text-foreground/70 hover:bg-accent/50',
+              )}
+            >
+              <Sparkles size={13} className="shrink-0 text-primary/60" />
+              <div className="flex flex-1 flex-col gap-0.5 min-w-0">
+                <span className="text-xs font-medium">Auto</span>
+                <span className="text-[10px] text-muted-foreground/50">
+                  Server decides the best model
+                </span>
+              </div>
+              {!selectedModel && (
+                <Check size={13} className="shrink-0 text-primary" />
+              )}
+            </button>
+
+            {models.length > 0 && (
+              <>
+                <div className="my-0.5 h-px bg-border/30" />
+                {models.map((model) => (
+                  <ModelOption
+                    key={model.id}
+                    model={model}
+                    isSelected={selectedModel?.id === model.id}
+                    onSelect={handleSelect}
+                  />
+                ))}
+              </>
+            )}
           </motion.div>
         )}
       </AnimatePresence>
