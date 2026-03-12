@@ -55,9 +55,9 @@ export default function WorkflowPicker({ selected, onChange }: WorkflowPickerPro
         onClick={() => setOpen((v) => !v)}
         className={cn(
           'flex items-center gap-1 rounded py-0.5 px-1.5',
-          'text-xs text-muted-foreground/50 transition-colors',
-          'hover:text-muted-foreground',
-          selected && 'text-primary/70 hover:text-primary',
+          'text-xs text-muted-foreground/70 transition-colors',
+          'hover:text-foreground/80',
+          selected && 'text-primary hover:text-primary/80',
         )}
       >
         <GitBranch size={12} />

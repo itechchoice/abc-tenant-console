@@ -3,7 +3,6 @@ import { useMemo } from 'react';
 import { useChatStore } from '@/stores/chatStore';
 import { useWorkflowRuntimeStore } from '@/stores/workflowRuntimeStore';
 import { cn } from '@/lib/utils';
-import { EmptyCanvasState } from './EmptyCanvasState';
 import { ExecutionHeader } from './ExecutionHeader';
 import { ExecutionInspector } from './ExecutionInspector';
 import { ExecutionTimeline } from './ExecutionTimeline';
@@ -27,7 +26,6 @@ export function WorkflowCanvas({ className, fitViewTrigger = 0 }: WorkflowCanvas
   const selectStep = useWorkflowRuntimeStore((s) => s.selectStep);
   const resultSummary = useWorkflowRuntimeStore((s) => s.resultSummary);
   const lastCompletedSummary = useWorkflowRuntimeStore((s) => s.lastCompletedSummary);
-  const restoreLastExecution = useWorkflowRuntimeStore((s) => s.restoreLastExecution);
 
   const currentStep = steps.find((step) => step.id === currentStepId) || null;
   const selectedStep = steps.find((step) => step.id === selectedStepId)
@@ -45,20 +43,7 @@ export function WorkflowCanvas({ className, fitViewTrigger = 0 }: WorkflowCanvas
   }), [chatMode, currentStep, phase, selectedStep, status, steps]);
 
   if (phase === 'idle') {
-    return (
-      <div
-        className={cn(
-          'h-full w-full overflow-hidden rounded-[28px] border border-slate-200/70 bg-[#f4f6fb]',
-          className,
-        )}
-      >
-        <EmptyCanvasState
-          chatMode={chatMode}
-          lastSummary={lastCompletedSummary}
-          onOpenLastRun={restoreLastExecution}
-        />
-      </div>
-    );
+    return null;
   }
 
   return (

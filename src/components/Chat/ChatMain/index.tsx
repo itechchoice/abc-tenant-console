@@ -5,7 +5,14 @@ import {
   useRef,
 } from 'react';
 import { Loader2 } from 'lucide-react';
-import { useChatStore } from '@/stores/chatStore';
+import {
+  useChatStore,
+  selectCurrentMessages,
+  selectIsTyping,
+  selectHasMore,
+  selectIsLoadingMore,
+  selectActiveSessionId,
+} from '@/stores/chatStore';
 import { useWorkflowRuntimeStore } from '@/stores/workflowRuntimeStore';
 import { fetchOlderMessages } from '@/http/chatApi';
 import { cn } from '@/lib/utils';
@@ -15,13 +22,14 @@ import { TypingIndicator } from './TypingIndicator';
 interface ChatMainProps {
   className?: string;
   onInteractionSubmit?: (payload: { actionId: string; formData: Record<string, string> }) => void;
+  onNodeClick?: (nodeId: string) => void;
 }
 
-export function ChatMain({ className, onInteractionSubmit }: ChatMainProps) {
-  const messages = useChatStore((s) => s.messages);
-  const isTyping = useChatStore((s) => s.isTyping);
-  const hasMore = useChatStore((s) => s.hasMore);
-  const isLoadingMore = useChatStore((s) => s.isLoadingMore);
+export function ChatMain({ className, onInteractionSubmit, onNodeClick }: ChatMainProps) {
+  const messages = useChatStore(selectCurrentMessages);
+  const isTyping = useChatStore(selectIsTyping);
+  const hasMore = useChatStore(selectHasMore);
+  const isLoadingMore = useChatStore(selectIsLoadingMore);
   const selectedMessageId = useWorkflowRuntimeStore((s) => s.selectedMessageId);
 
   const endRef = useRef<HTMLDivElement>(null);
@@ -55,26 +63,20 @@ export function ChatMain({ className, onInteractionSubmit }: ChatMainProps) {
   }, [selectedMessageId]);
 
   const loadOlderMessages = useCallback(async () => {
-    const {
-      messages: currentMessages,
-      currentSessionId,
-      prependMessages,
-      setHasMore,
-      setIsLoadingMore,
-    } = useChatStore.getState();
+    const store = useChatStore.getState();
+    const sessionId = selectActiveSessionId(store);
+    const session = store.sessions.get(sessionId);
+    if (!session || !store.currentSessionId || session.messageOrder.length === 0) return;
 
-    if (!currentSessionId || !currentMessages.length) return;
-
-    setIsLoadingMore(true);
+    store.setIsLoadingMore(sessionId, true);
 
     try {
-      const firstMsgId = currentMessages[0].id;
-      const result = await fetchOlderMessages(currentSessionId, firstMsgId);
+      const firstMsgId = session.messageOrder[0];
+      const result = await fetchOlderMessages(store.currentSessionId, firstMsgId);
 
-      setHasMore(result.hasMore);
-      const olderMessages = result.messages;
+      store.setHasMore(sessionId, result.hasMore);
 
-      if (olderMessages.length > 0) {
+      if (result.messages.length > 0) {
         const container = scrollContainerRef.current;
         if (container) {
           pendingAnchorRef.current = {
@@ -82,12 +84,12 @@ export function ChatMain({ className, onInteractionSubmit }: ChatMainProps) {
             scrollTop: container.scrollTop,
           };
         }
-        prependMessages(olderMessages);
+        store.prependMessages(sessionId, result.messages);
       }
     } catch {
-      setHasMore(false);
+      store.setHasMore(sessionId, false);
     } finally {
-      setIsLoadingMore(false);
+      store.setIsLoadingMore(sessionId, false);
     }
   }, []);
 
@@ -99,8 +101,10 @@ export function ChatMain({ className, onInteractionSubmit }: ChatMainProps) {
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (!entry.isIntersecting) return;
-        const { hasMore: canLoad, isLoadingMore: loading } = useChatStore.getState();
-        if (canLoad && !loading) loadOlderMessages();
+        const store = useChatStore.getState();
+        const sid = selectActiveSessionId(store);
+        const session = store.sessions.get(sid);
+        if (session?.hasMore && !session.isLoadingMore) loadOlderMessages();
       },
       { root: container, threshold: 0 },
     );
@@ -119,7 +123,7 @@ export function ChatMain({ className, onInteractionSubmit }: ChatMainProps) {
       className={cn('flex flex-1 flex-col overflow-y-auto', className)}
       style={{ overflowAnchor: 'none' }}
     >
-      <div className="mx-auto w-full max-w-3xl py-6">
+      <div className="w-full px-6 md:px-12 lg:px-20 py-6">
         {hasMore && (
           <div ref={topSentinelRef} className="flex justify-center py-3">
             {isLoadingMore && (
@@ -136,6 +140,7 @@ export function ChatMain({ className, onInteractionSubmit }: ChatMainProps) {
             key={msg.id}
             msg={msg}
             onInteractionSubmit={handleInteractionSubmit}
+            onNodeClick={onNodeClick}
           />
         ))}
 

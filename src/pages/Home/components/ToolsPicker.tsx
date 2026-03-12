@@ -223,9 +223,9 @@ export default function ToolsPicker({ selections, onChange }: ToolsPickerProps) 
         onClick={() => setOpen((v) => !v)}
         className={cn(
           'flex items-center gap-1 rounded py-0.5 px-1.5',
-          'text-xs text-muted-foreground/50 transition-colors',
-          'hover:text-muted-foreground',
-          selectedCount > 0 && 'text-primary/70 hover:text-primary',
+          'text-xs text-muted-foreground/70 transition-colors',
+          'hover:text-foreground/80',
+          selectedCount > 0 && 'text-primary hover:text-primary/80',
         )}
       >
         <Wrench size={12} />

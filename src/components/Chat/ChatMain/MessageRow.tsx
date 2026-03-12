@@ -8,11 +8,13 @@ import { ToolCallCard } from '@/components/GenerativeUI/ToolCallCard';
 import { cn } from '@/lib/utils';
 import type { Message } from '@/schemas/chatSchema';
 import { ChatAvatar } from './ChatAvatar';
+import { WorkflowExecutionCard } from './WorkflowExecutionCard';
 import { resolveMessageType, resolveToolStatus } from './messageResolvers';
 
 interface MessageRowProps {
   msg: Message;
   onInteractionSubmit: (payload: { actionId: string; formData: Record<string, string> }) => void;
+  onNodeClick?: (nodeId: string) => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -80,7 +82,7 @@ const bubbleVariants = {
   },
 };
 
-export const MessageRow = memo(({ msg, onInteractionSubmit }: MessageRowProps) => {
+export const MessageRow = memo(({ msg, onInteractionSubmit, onNodeClick }: MessageRowProps) => {
   const msgType = resolveMessageType(msg);
   const selectStepByMessageId = useWorkflowRuntimeStore((s) => s.selectStepByMessageId);
   const selectedMessageId = useWorkflowRuntimeStore((s) => s.selectedMessageId);
@@ -129,7 +131,9 @@ export const MessageRow = memo(({ msg, onInteractionSubmit }: MessageRowProps) =
     );
   }
 
-  if (msg.role === 'assistant' && !msg.content) {
+  const hasWorkflow = !!(msg.role === 'assistant' && msg.metadata?.workflowId);
+
+  if (msg.role === 'assistant' && !msg.content && !hasWorkflow) {
     return null;
   }
 
@@ -142,19 +146,20 @@ export const MessageRow = memo(({ msg, onInteractionSubmit }: MessageRowProps) =
         initial="hidden"
         animate="visible"
         className={cn(
-          'flex items-start gap-3 px-4 py-2',
-          isUser && 'flex-row-reverse',
+          'flex items-start gap-3 py-2',
+          isUser ? 'flex-row-reverse pl-4 pr-6' : 'pl-6 pr-4',
         )}
       >
         <ChatAvatar author={msg.role} />
 
-        <div className={cn('flex flex-col', isUser ? 'items-end' : 'items-start')}>
+        <div className={cn('flex min-w-0 flex-1 flex-col', isUser ? 'items-end' : 'items-start')}>
           <div
             className={cn(
-              'max-w-[75%] rounded-2xl px-4 py-2.5',
+              'rounded-2xl px-4 py-2.5',
               isUser
-                ? 'rounded-tr-sm bg-primary text-primary-foreground'
+                ? 'max-w-[75%] rounded-tr-sm bg-primary text-primary-foreground'
                 : 'rounded-tl-sm bg-muted text-foreground',
+              !isUser && !hasWorkflow && 'max-w-[75%]',
             )}
           >
             {!isUser && msg.status === 'streaming' && workflowPhase === 'live' && (
@@ -174,7 +179,19 @@ export const MessageRow = memo(({ msg, onInteractionSubmit }: MessageRowProps) =
                 )}
               </>
             ) : (
-              <MarkdownMessage content={msg.content} />
+              <>
+                {hasWorkflow && (
+                  <div className="mb-2 -mx-1">
+                    <WorkflowExecutionCard
+                      workflowId={msg.metadata!.workflowId as string}
+                      onNodeClick={onNodeClick}
+                    />
+                  </div>
+                )}
+                {msg.content && (
+                  <MarkdownMessage content={msg.content} isStreaming={msg.status === 'streaming'} />
+                )}
+              </>
             )}
           </div>
 

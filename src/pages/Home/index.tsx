@@ -1,176 +1,128 @@
-import {
-  useState, useCallback, useRef, useEffect,
-} from 'react';
+import { useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { PanelRightClose, PanelRight } from 'lucide-react';
-import { useChatStore } from '@/stores/chatStore';
-import { useWorkflowRuntimeStore } from '@/stores/workflowRuntimeStore';
-import { WorkflowCanvas } from '@/components/Workflow/WorkflowCanvas';
+import { PanelLeft } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useChatStore, selectActiveSessionId } from '@/stores/chatStore';
+import type { NodeExecState } from '@/stores/chatStore';
+import { Sheet, SheetContent } from '@/components/ui/sheet';
+import { NodeExecutionDetailDrawer } from '@itechchoice/mcp-fe-shared/workflow-editor';
 import ConversationSidebar from './components/ConversationSidebar';
 import ChatPanel from './components/ChatPanel';
-import { WorkflowSplitter } from './components/WorkflowSplitter';
 
-// ---------------------------------------------------------------------------
-// Panel width constraints
-// ---------------------------------------------------------------------------
+const SESSION_SIDEBAR_STORAGE_KEY = 'conversation-sidebar-open';
 
-const MIN_PANEL_WIDTH = 320;
-const DEFAULT_RATIO = 0.3;
-const MAX_RATIO = 0.6;
-const STORAGE_KEY = 'workflow-panel-width';
-
-function getMaxWidth(): number {
-  return Math.round(window.innerWidth * MAX_RATIO);
+function getInitialConversationSidebarOpen(): boolean {
+  try {
+    const cached = localStorage.getItem(SESSION_SIDEBAR_STORAGE_KEY);
+    return cached == null ? true : cached === 'true';
+  } catch {
+    return true;
+  }
 }
 
-/**
- * Reads cached panel width from localStorage with defensive parsing.
- * Falls back to 30% of viewport if the cache is missing or corrupt.
- */
-function getInitialWidth(): number {
-  try {
-    const cached = localStorage.getItem(STORAGE_KEY);
-    if (cached !== null) {
-      const parsed = Number(cached);
-      if (Number.isFinite(parsed) && parsed > 0) {
-        return Math.max(MIN_PANEL_WIDTH, Math.min(parsed, getMaxWidth()));
+interface ExecutionNode {
+  id: string;
+  name?: string;
+  status?: string;
+  success?: boolean;
+  error?: unknown;
+  config?: Record<string, unknown>;
+  durationMs?: number;
+}
+
+function toExecutionNode(nodeId: string, state: NodeExecState): ExecutionNode {
+  return {
+    id: nodeId,
+    name: nodeId,
+    status: state.status === 'completed' ? 'complete' : state.status,
+    success: state.success,
+    error: state.reason ?? (state.payload?.error as string | undefined),
+    config: { nodeType: state.nodeType },
+    durationMs:
+      state.startTimestamp && state.endTimestamp
+        ? new Date(state.endTimestamp).getTime() - new Date(state.startTimestamp).getTime()
+        : undefined,
+  };
+}
+
+function Home() {
+  const [conversationSidebarOpen, setConversationSidebarOpen] = useState(getInitialConversationSidebarOpen);
+  const [selectedNode, setSelectedNode] = useState<ExecutionNode | null>(null);
+
+  const setConversationSidebarVisible = useCallback((next: boolean) => {
+    setConversationSidebarOpen(next);
+    try {
+      localStorage.setItem(SESSION_SIDEBAR_STORAGE_KEY, String(next));
+    } catch { /* noop */ }
+  }, []);
+  const collapseConversationSidebar = useCallback(() => {
+    setConversationSidebarVisible(false);
+  }, [setConversationSidebarVisible]);
+  const expandConversationSidebar = useCallback(() => {
+    setConversationSidebarVisible(true);
+  }, [setConversationSidebarVisible]);
+
+  const handleNodeClick = useCallback((nodeId: string) => {
+    const store = useChatStore.getState();
+    const sessionId = selectActiveSessionId(store);
+    const session = store.sessions.get(sessionId);
+    if (!session) return;
+
+    for (const exec of session.workflowExecutions.values()) {
+      const nodeState = exec.nodeStates[nodeId];
+      if (nodeState) {
+        setSelectedNode(toExecutionNode(nodeId, nodeState));
+        return;
       }
     }
-  } catch { /* localStorage may be blocked — fall through */ }
-  return Math.round(window.innerWidth * DEFAULT_RATIO);
-}
 
-/**
- * Home — AI Console main workspace.
- *
- * Three-column split-screen layout:
- *   1. Left   – ConversationSidebar  (w-64, fixed session history)
- *   2. Center – ChatPanel            (flex-1, streaming chat interface)
- *   3. Right  – WorkflowCanvas       (resizable, collapsible agent execution graph)
- *
- * The right panel auto-expands when the backend emits a `workflow_pending`
- * event (via `currentWorkflowId` in the store), and can be manually toggled
- * by the user at any time. A draggable splitter allows free width adjustment.
- */
-function Home() {
-  const currentWorkflowId = useChatStore((s) => s.currentWorkflowId);
-  const workflowPhase = useWorkflowRuntimeStore((s) => s.phase);
-  const [canvasVisible, setCanvasVisible] = useState(true);
-  const [panelWidth, setPanelWidth] = useState(getInitialWidth);
-  const [isDragging, setIsDragging] = useState(false);
-  const [fitViewTrigger, setFitViewTrigger] = useState(0);
-
-  const draggingRef = useRef(false);
-  const hadActiveExecutionRef = useRef(false);
-
-  const toggleCanvas = useCallback(() => setCanvasVisible((v) => !v), []);
-
-  const hasActiveExecution = !!currentWorkflowId || workflowPhase !== 'idle';
-  const showCanvas = canvasVisible;
-
-  useEffect(() => {
-    if (hasActiveExecution && !hadActiveExecutionRef.current) {
-      setCanvasVisible(true);
-    }
-
-    hadActiveExecutionRef.current = hasActiveExecution;
-  }, [hasActiveExecution]);
-
-  // ── Keep MAX_WIDTH in sync on window resize ──────────────────────
-  useEffect(() => {
-    const handleResize = () => {
-      setPanelWidth((prev) => Math.min(prev, getMaxWidth()));
-    };
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    setSelectedNode({ id: nodeId, name: nodeId, status: 'pending' });
   }, []);
 
-  // ── Drag handlers ────────────────────────────────────────────────
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    draggingRef.current = true;
-    setIsDragging(true);
-    document.body.style.userSelect = 'none';
-    document.body.style.cursor = 'col-resize';
-
-    const handleMouseMove = (moveEvent: MouseEvent) => {
-      if (!draggingRef.current) return;
-      const newWidth = window.innerWidth - moveEvent.clientX;
-      const clamped = Math.max(MIN_PANEL_WIDTH, Math.min(newWidth, getMaxWidth()));
-      setPanelWidth(clamped);
-    };
-
-    const handleMouseUp = () => {
-      draggingRef.current = false;
-      setIsDragging(false);
-      document.body.style.userSelect = '';
-      document.body.style.cursor = '';
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-
-      setPanelWidth((final) => {
-        try { localStorage.setItem(STORAGE_KEY, String(final)); } catch { /* noop */ }
-        return final;
-      });
-    };
-
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
-  }, []);
+  const closeDrawer = useCallback(() => setSelectedNode(null), []);
 
   return (
     <div className="flex h-full w-full overflow-hidden">
-      {/* ── Left: Session sidebar ──────────────────────────────────── */}
-      <ConversationSidebar />
-
-      {/* ── Center: Chat panel ─────────────────────────────────────── */}
-      <div className="relative flex flex-1 flex-col min-w-0 min-h-0 bg-background">
-        <ChatPanel />
-
-        <button
-          type="button"
-          onClick={toggleCanvas}
-          aria-label={showCanvas ? 'Hide workflow canvas' : 'Show workflow canvas'}
-          className={cn(
-            'absolute right-3 top-3 z-10 flex h-7 w-7 items-center justify-center rounded-lg',
-            'bg-background/80 backdrop-blur-sm border border-border/60 shadow-sm',
-            'text-muted-foreground hover:text-foreground hover:border-border',
-            'transition-all active:scale-95',
-          )}
-        >
-          {showCanvas
-            ? <PanelRightClose size={14} strokeWidth={1.8} />
-            : <PanelRight size={14} strokeWidth={1.8} />}
-        </button>
-      </div>
-
-      {/* ── Splitter + Right: Workflow canvas ──────────────────────── */}
       <AnimatePresence initial={false}>
-        {showCanvas && (
+        {conversationSidebarOpen && (
           <motion.div
-            key="workflow-panel"
+            key="conversation-sidebar"
             initial={{ width: 0, opacity: 0 }}
-            animate={{ width: panelWidth, opacity: 1 }}
+            animate={{ width: 256, opacity: 1 }}
             exit={{ width: 0, opacity: 0 }}
-            transition={
-              isDragging
-                ? { duration: 0 }
-                : { type: 'spring', stiffness: 300, damping: 30 }
-            }
-            onAnimationComplete={() => {
-              if (!draggingRef.current) setFitViewTrigger((n) => n + 1);
-            }}
-            className="flex shrink-0 overflow-hidden"
+            transition={{ type: 'spring', stiffness: 320, damping: 32 }}
+            className="shrink-0 overflow-hidden"
           >
-            <WorkflowSplitter onMouseDown={handleMouseDown} isDragging={isDragging} />
-
-            <div className="flex-1 overflow-hidden border-l border-border/40">
-              <WorkflowCanvas className="h-full rounded-none border-0" fitViewTrigger={fitViewTrigger} />
-            </div>
+            <ConversationSidebar onCollapse={collapseConversationSidebar} />
           </motion.div>
         )}
       </AnimatePresence>
+
+      <div className="relative flex flex-1 flex-col min-w-0 min-h-0 bg-background">
+        <ChatPanel onNodeClick={handleNodeClick} />
+
+        {!conversationSidebarOpen && (
+          <button
+            type="button"
+            onClick={expandConversationSidebar}
+            aria-label="Show conversations"
+            className={cn(
+              'absolute left-3 top-3 z-10 flex h-7 w-7 items-center justify-center rounded-lg',
+              'bg-background/80 backdrop-blur-sm border border-border/60 shadow-sm',
+              'text-muted-foreground hover:text-foreground hover:border-border',
+              'transition-all active:scale-95',
+            )}
+          >
+            <PanelLeft size={14} strokeWidth={1.8} />
+          </button>
+        )}
+      </div>
+
+      <Sheet open={!!selectedNode} onOpenChange={(open) => { if (!open) closeDrawer(); }}>
+        <SheetContent side="right" showCloseButton={false} className="w-[380px] sm:max-w-[380px] p-0 gap-0">
+          <NodeExecutionDetailDrawer node={selectedNode} onClose={closeDrawer} />
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }

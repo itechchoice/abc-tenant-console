@@ -1,12 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
-import { fetchAllModels } from '@/http/modelManagerApi';
-import { modelManagerKeys } from '@/pages/ModelManager/hooks/queryKeys';
-import type { ModelResponse } from '@/schemas/modelManagerSchema';
+import { fetchChatModels, type ChatModel } from '@/http/modelManagerApi';
 
 export function useChatModels() {
-  return useQuery({
-    queryKey: modelManagerKeys.models.allList({ modelType: 'CHAT', enabled: true }),
-    queryFn: () => fetchAllModels({ modelType: 'CHAT', enabled: true, size: 200 }),
-    select: (page) => page.content,
-  }) as ReturnType<typeof useQuery<unknown, Error, ModelResponse[]>>;
+  return useQuery<ChatModel[], Error>({
+    queryKey: ['chatModels'],
+    queryFn: fetchChatModels,
+    select: (models) => models.filter((m) => m.id !== 'auto'),
+    staleTime: 5 * 60 * 1000,
+  });
 }

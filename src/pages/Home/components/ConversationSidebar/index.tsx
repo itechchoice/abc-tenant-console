@@ -8,6 +8,7 @@ import {
   Plus,
   Search,
   X,
+  PanelLeftClose,
 } from 'lucide-react';
 import { useSessions, useDeleteSession, useRenameSession } from '@/hooks/useChatHistory';
 import { cn } from '@/lib/utils';
@@ -24,38 +25,38 @@ const listVariants = {
   },
 };
 
-export default function ConversationSidebar() {
+interface ConversationSidebarProps {
+  onCollapse: () => void;
+}
+
+export default function ConversationSidebar({ onCollapse }: ConversationSidebarProps) {
   const [search, setSearch] = useState('');
   const { data: sessionsData, isLoading } = useSessions({ size: 100 });
   const conversations = sessionsData?.items ?? [];
   const currentSessionId = useChatStore((s) => s.currentSessionId);
-  const clearChat = useChatStore((s) => s.clearChat);
-  const setCurrentSessionId = useChatStore((s) => s.setCurrentSessionId);
 
   const deleteMutation = useDeleteSession();
   const renameMutation = useRenameSession();
 
   const handleNewChat = useCallback(() => {
-    clearChat();
+    useChatStore.getState().switchSession(null);
     useWorkflowRuntimeStore.getState().resetRuntime();
-    useChatStore.getState().setHistoricalTrack(false);
-  }, [clearChat]);
+  }, []);
 
   const handleSelect = useCallback((id: string) => {
     if (id === useChatStore.getState().currentSessionId) return;
-    useChatStore.getState().clearChat();
-    useWorkflowRuntimeStore.getState().resetRuntime();
-    setCurrentSessionId(id);
+    useChatStore.getState().switchSession(id);
     useChatStore.getState().setHistoricalTrack(true);
-  }, [setCurrentSessionId]);
+    useWorkflowRuntimeStore.getState().resetRuntime();
+  }, []);
 
   const handleDelete = useCallback((id: string) => {
     deleteMutation.mutate(id);
     if (useChatStore.getState().currentSessionId === id) {
-      clearChat();
+      useChatStore.getState().switchSession(null);
       useWorkflowRuntimeStore.getState().resetRuntime();
     }
-  }, [deleteMutation, clearChat]);
+  }, [deleteMutation]);
 
   const handleRename = useCallback((id: string, title: string) => {
     renameMutation.mutate({ id, title });
@@ -72,22 +73,37 @@ export default function ConversationSidebar() {
   const grouped = useMemo(() => groupByTime(filtered), [filtered]);
 
   return (
-    <aside className="flex w-64 shrink-0 flex-col border-r border-border/40 bg-sidebar">
+    <aside className="flex h-full min-h-0 w-64 shrink-0 flex-col border-r border-border/40 bg-sidebar">
       <div className="flex items-center justify-between px-4 pt-5 pb-3">
         <h2 className="text-xs font-semibold uppercase tracking-widest text-sidebar-foreground/40">
           Conversations
         </h2>
-        <button
-          type="button"
-          onClick={handleNewChat}
-          className={cn(
-            'flex h-7 w-7 items-center justify-center rounded-lg transition-all',
-            'bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground',
-            'active:scale-95',
-          )}
-        >
-          <Plus size={14} strokeWidth={2.5} />
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={handleNewChat}
+            className={cn(
+              'flex h-7 w-7 items-center justify-center rounded-lg transition-all',
+              'bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground',
+              'active:scale-95',
+            )}
+            aria-label="New chat"
+          >
+            <Plus size={14} strokeWidth={2.5} />
+          </button>
+          <button
+            type="button"
+            onClick={onCollapse}
+            className={cn(
+              'flex h-7 w-7 items-center justify-center rounded-lg transition-all',
+              'text-muted-foreground/70 hover:bg-accent hover:text-foreground',
+              'active:scale-95',
+            )}
+            aria-label="Collapse conversations"
+          >
+            <PanelLeftClose size={14} strokeWidth={2.1} />
+          </button>
+        </div>
       </div>
 
       <div className="px-3 pb-2">

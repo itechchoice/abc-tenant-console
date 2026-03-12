@@ -7,8 +7,9 @@ import {
 import { AnimatePresence, motion } from 'framer-motion';
 import { ArrowUp, Square } from 'lucide-react';
 import { useWorkflowRuntimeStore } from '@/stores/workflowRuntimeStore';
+import { useChatStore } from '@/stores/chatStore';
 import { cn } from '@/lib/utils';
-import ModelSelector from '../ModelSelector';
+import ModelSelector from '@/components/ModelSelector';
 import ToolsPicker from '../ToolsPicker';
 import WorkflowPicker from '../WorkflowPicker';
 import { InputTagList } from './InputTagList';
@@ -30,6 +31,9 @@ export function ChatInput({ onSend, isLoading, onStop }: ChatInputProps) {
   const [selectedTools, setSelectedTools] = useState<ToolSelection[]>([]);
   const [selectedWorkflow, setSelectedWorkflow] = useState<SelectedWorkflow | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const selectedModel = useChatStore((s) => s.selectedModel);
+  const setSelectedModel = useChatStore((s) => s.setSelectedModel);
 
   const workflowPhase = useWorkflowRuntimeStore((s) => s.phase);
   const workflowStatus = useWorkflowRuntimeStore((s) => s.status);
@@ -161,7 +165,7 @@ export function ChatInput({ onSend, isLoading, onStop }: ChatInputProps) {
               </div>
 
               <div className="flex items-center gap-1.5">
-                <ModelSelector />
+                <ModelSelector value={selectedModel} onChange={setSelectedModel} />
 
                 <AnimatePresence mode="wait">
                   {isLoading ? (

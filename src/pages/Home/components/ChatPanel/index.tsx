@@ -7,15 +7,22 @@ import { useQueryClient } from '@tanstack/react-query';
 import { ChatMain } from '@/components/Chat/ChatMain';
 import { useSessionDetail, chatQueryKeys } from '@/hooks/useChatHistory';
 import { useAgentChat } from '@/hooks/useAgentChat';
-import { useChatStore } from '@/stores/chatStore';
+import {
+  useChatStore,
+  selectCurrentMessages,
+} from '@/stores/chatStore';
 import { ChatInput, type ChatInputMeta } from './ChatInput';
 import { ChatSkeleton } from './ChatSkeleton';
 import { WelcomeState } from './WelcomeState';
 
-export default function ChatPanel() {
+interface ChatPanelProps {
+  onNodeClick?: (nodeId: string) => void;
+}
+
+export default function ChatPanel({ onNodeClick }: ChatPanelProps) {
   const currentSessionId = useChatStore((s) => s.currentSessionId);
   const isHistoricalTrack = useChatStore((s) => s.isHistoricalTrack);
-  const messages = useChatStore((s) => s.messages);
+  const messages = useChatStore(selectCurrentMessages);
   const queryClient = useQueryClient();
   const hasSyncedSessionRef = useRef<string | null>(null);
 
@@ -40,18 +47,20 @@ export default function ChatPanel() {
   useEffect(() => {
     if (!sessionDetail?.id || sessionDetail.id === hasSyncedSessionRef.current) return;
 
-    if (useChatStore.getState().isHistoricalTrack) {
-      useChatStore.getState().setMessages(sessionDetail.messages || []);
-      useChatStore.getState().setHasMore(!!sessionDetail.hasMore);
+    const store = useChatStore.getState();
+    if (!store.isHistoricalTrack) return;
 
-      const lastMsg = sessionDetail.messages?.[sessionDetail.messages.length - 1];
-      if (lastMsg?.taskStatus === 'RUNNING' && lastMsg?.taskId) {
-        const assistantId = lastMsg.role === 'assistant' ? lastMsg.id : undefined;
-        connectToTaskStream(lastMsg.taskId, assistantId);
-      }
+    const sid = sessionDetail.id;
+    store.setSessionMessages(sid, sessionDetail.messages || []);
+    store.setHasMore(sid, !!sessionDetail.hasMore);
+
+    const lastMsg = sessionDetail.messages?.[sessionDetail.messages.length - 1];
+    if (lastMsg?.taskStatus === 'RUNNING' && lastMsg?.taskId) {
+      const assistantId = lastMsg.role === 'assistant' ? lastMsg.id : undefined;
+      connectToTaskStream(lastMsg.taskId, assistantId);
     }
 
-    hasSyncedSessionRef.current = sessionDetail.id;
+    hasSyncedSessionRef.current = sid;
   }, [sessionDetail, connectToTaskStream]);
 
   useEffect(() => {
@@ -59,10 +68,8 @@ export default function ChatPanel() {
   }, [currentSessionId]);
 
   const handleSend = useCallback((content: string, meta?: ChatInputMeta) => {
-    sendMessage(content, {
-      sessionId: useChatStore.getState().currentSessionId || undefined,
-      ...meta,
-    });
+    const sid = useChatStore.getState().currentSessionId || undefined;
+    sendMessage(content, { sessionId: sid, ...meta });
   }, [sendMessage]);
 
   const hasMessages = messages.length > 0;
@@ -84,7 +91,7 @@ export default function ChatPanel() {
       ) : showWelcome ? (
         <WelcomeState onSuggestion={handleSend} />
       ) : (
-        <ChatMain className="min-h-0 flex-1" />
+        <ChatMain className="min-h-0 flex-1" onNodeClick={onNodeClick} />
       )}
 
       <ChatInput

@@ -1,8 +1,7 @@
 import { memo, useCallback, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Check, Copy } from 'lucide-react';
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import { CodeHighlighter } from '@ant-design/x';
 import { cn } from '@/lib/utils';
 
 const COPY_RESET_MS = 2000;
@@ -71,22 +70,9 @@ export const CodeBlock = memo(({ language, value }: CodeBlockProps) => {
         </motion.button>
       </div>
 
-      <SyntaxHighlighter
-        language={language || 'text'}
-        style={oneDark}
-        customStyle={{
-          margin: 0,
-          padding: '1rem 1.25rem',
-          background: 'transparent',
-          fontSize: '0.84rem',
-          lineHeight: '1.65',
-        }}
-        codeTagProps={{
-          className: 'font-mono',
-        }}
-      >
+      <CodeHighlighter header={null} lang={language || 'text'} className="text-sm">
         {value}
-      </SyntaxHighlighter>
+      </CodeHighlighter>
     </div>
   );
 });
