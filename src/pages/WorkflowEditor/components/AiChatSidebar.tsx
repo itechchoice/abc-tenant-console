@@ -3,16 +3,14 @@ import type { Node } from '@xyflow/react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { X, Send, Sparkles, Eye, Loader2, Tag, ChevronDown, Check } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { X, Send, Sparkles, Eye, Loader2, Tag } from 'lucide-react';
 import { useAiViewStore } from '@/stores/aiViewStore';
 import { useChatStore } from '@/stores/chatStore';
-import { useChatModels } from '@/hooks/useModels';
+import ModelSelector from '@/components/ModelSelector';
 import { generateWorkflowStream } from '../mock/aiWorkflowMock';
 import StepsCard from './StepsCard';
 import type { CanvasAreaHandle } from '@itechchoice/mcp-fe-shared/workflow-editor';
 import { convertToReactFlow } from '@itechchoice/mcp-fe-shared/workflow-editor';
-import type { ModelResponse } from '@/schemas/modelManagerSchema';
 
 interface NodeTag {
   id: string;
@@ -44,8 +42,6 @@ const AiChatSidebar = forwardRef<AiChatSidebarRef, AiChatSidebarProps>(
   function AiChatSidebar({ canvasRef, onDirty, onClose, selectedNodes = [], onRemoveSelectedNode }, ref) {
     const [messages, setMessages] = useState<AiMessage[]>([]);
     const [input, setInput] = useState('');
-    const [modelOpen, setModelOpen] = useState(false);
-    const modelRef = useRef<HTMLDivElement>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
     const {
@@ -55,25 +51,8 @@ const AiChatSidebar = forwardRef<AiChatSidebarRef, AiChatSidebarProps>(
       setCurrentSnapshot, setActiveView,
     } = useAiViewStore();
 
-    const { data: models = [], isLoading: modelsLoading } = useChatModels();
     const selectedModel = useChatStore((s) => s.selectedModel);
     const setSelectedModel = useChatStore((s) => s.setSelectedModel);
-
-    useEffect(() => {
-      if (!modelOpen) return;
-      const handler = (e: MouseEvent) => {
-        if (modelRef.current && !modelRef.current.contains(e.target as Node)) {
-          setModelOpen(false);
-        }
-      };
-      document.addEventListener('mousedown', handler);
-      return () => document.removeEventListener('mousedown', handler);
-    }, [modelOpen]);
-
-    const handleSelectModel = useCallback((model: ModelResponse) => {
-      setSelectedModel(model);
-      setModelOpen(false);
-    }, [setSelectedModel]);
 
     useEffect(() => {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -314,37 +293,8 @@ const AiChatSidebar = forwardRef<AiChatSidebarRef, AiChatSidebarProps>(
               {generating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
             </Button>
           </div>
-          {/* Model selector */}
-          <div ref={modelRef} className="relative mt-2">
-            <button
-              type="button"
-              onClick={() => setModelOpen((v) => !v)}
-              disabled={modelsLoading}
-              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <span className="truncate max-w-[200px]">
-                {modelsLoading ? 'Loading...' : (selectedModel?.displayName || selectedModel?.modelId || 'Auto')}
-              </span>
-              <ChevronDown className={cn('h-3 w-3 transition-transform', modelOpen && 'rotate-180')} />
-            </button>
-            {modelOpen && models.length > 0 && (
-              <div className="absolute bottom-full left-0 mb-1 w-64 max-h-48 overflow-auto rounded-md border bg-popover shadow-md z-50">
-                {models.map((m) => (
-                  <button
-                    key={m.id}
-                    type="button"
-                    onClick={() => handleSelectModel(m)}
-                    className={cn(
-                      'flex items-center gap-2 w-full px-3 py-1.5 text-xs text-left hover:bg-accent transition-colors',
-                      selectedModel?.id === m.id && 'bg-accent',
-                    )}
-                  >
-                    <Check className={cn('h-3 w-3 shrink-0', selectedModel?.id === m.id ? 'opacity-100' : 'opacity-0')} />
-                    <span className="truncate">{m.displayName || m.modelId}</span>
-                  </button>
-                ))}
-              </div>
-            )}
+          <div className="mt-2">
+            <ModelSelector value={selectedModel} onChange={setSelectedModel} />
           </div>
         </div>
       </div>

@@ -110,6 +110,27 @@ function mapPage<T>(raw: RawRecord, itemMapper: (item: RawRecord) => T): PageRes
 }
 
 // ---------------------------------------------------------------------------
+// Chat model list (runtime GET /models)
+// ---------------------------------------------------------------------------
+
+export interface ChatModel {
+  id: string;
+  object: string;
+  created: number;
+  owned_by: string;
+}
+
+interface ChatModelsListResponse {
+  object: string;
+  data: ChatModel[];
+}
+
+export async function fetchChatModels(): Promise<ChatModel[]> {
+  const res = await llmGatewayApiClient.get('/models') as unknown as ChatModelsListResponse;
+  return res.data;
+}
+
+// ---------------------------------------------------------------------------
 // Endpoints
 // ---------------------------------------------------------------------------
 

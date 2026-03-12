@@ -5,9 +5,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from '@/components/ui/select';
-import {
   Square, Loader2, CheckCircle2, XCircle, RotateCcw,
   AlertTriangle, FlaskConical,
 } from 'lucide-react';
@@ -15,12 +12,13 @@ import { useWorkflowEditorLocalStore } from '@/stores/workflowEditorStore';
 import { useNodeRuntimeStore } from '@itechchoice/mcp-fe-shared/workflow-editor';
 import type { CanvasAreaHandle } from '@itechchoice/mcp-fe-shared/workflow-editor';
 import { useTestRunWorkflow } from '../../hooks/useWorkflowRuns';
-import { useChatModels } from '@/hooks/useModels';
 import { useAuthStore } from '@/stores/authStore';
 import { engineApiBaseUrl } from '@/http/client';
+import ModelSelector from '@/components/ModelSelector';
+import type { ChatModel } from '@/http/modelManagerApi';
 import DependenciesTab from './DependenciesTab';
-import ExecutionTimeline from './ExecutionTimeline';
-import type { ExecutionEvent } from './ExecutionTimeline';
+import ExecutionTimeline from '@/components/ExecutionTimeline';
+import type { ExecutionEvent } from '@/components/ExecutionTimeline';
 
 interface RunDrawerProps {
   workflowId?: string;
@@ -30,7 +28,6 @@ interface RunDrawerProps {
 type RunState = 'idle' | 'running' | 'completed' | 'error';
 
 const SSE_TO_CANVAS_STATUS: Record<string, string> = {
-  STEP_START: 'running',
   completed: 'complete',
   skipped: 'skipped',
   failed: 'error',
@@ -52,13 +49,15 @@ export default function RunDrawer({ workflowId, canvasRef }: RunDrawerProps) {
   const [runState, setRunState] = useState<RunState>('idle');
   const [events, setEvents] = useState<ExecutionEvent[]>([]);
   const [testMessage, setTestMessage] = useState('');
-  const [selectedModelId, setSelectedModelId] = useState<string>('');
+  const [selectedModel, setSelectedModel] = useState<ChatModel | null>(null);
   const [activeTab, setActiveTab] = useState<string>('run');
   const abortRef = useRef<AbortController | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
-
-  const { data: models = [], isLoading: modelsLoading } = useChatModels();
   const [depsChecked, setDepsChecked] = useState(false);
+
+  const tokenBufferRef = useRef('');
+  const rafIdRef = useRef<number | null>(null);
+  const responseEntryIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -79,6 +78,25 @@ export default function RunDrawer({ workflowId, canvasRef }: RunDrawerProps) {
       maxZoom: 1.2,
     });
   }, [canvasRef]);
+
+  const flushTokenBuffer = useCallback(() => {
+    rafIdRef.current = null;
+    const chunk = tokenBufferRef.current;
+    if (!chunk) return;
+    tokenBufferRef.current = '';
+
+    const entryId = responseEntryIdRef.current;
+    if (!entryId) return;
+
+    setEvents((prev) => {
+      const idx = prev.findIndex((e) => e.id === entryId);
+      if (idx === -1) return prev;
+      const entry = prev[idx];
+      const updated = [...prev];
+      updated[idx] = { ...entry, streamedContent: entry.streamedContent + chunk };
+      return updated;
+    });
+  }, []);
 
   const subscribeSSE = useCallback((taskId: string) => {
     abortRef.current?.abort();
@@ -105,56 +123,181 @@ export default function RunDrawer({ workflowId, canvasRef }: RunDrawerProps) {
         const eventType = evt.event;
         try {
           const data = JSON.parse(evt.data);
-          const payload = parsePayload(data.payload);
+          const payload = parsePayload(data.payload ?? data.data);
           const eventId = (data.eventId as string) || `sse-${Date.now()}`;
           const timestamp = (data.timestamp as string) || new Date().toISOString();
 
           const nodeId = (payload.nodeId as string) || undefined;
           const nodeType = (payload.nodeType as string) || undefined;
 
-          const newEvent: ExecutionEvent = {
-            id: eventId,
-            eventType,
-            timestamp,
-            nodeId,
-            nodeType,
-            payload,
-          };
-
-          if (eventType === 'STEP_START' && nodeId) {
-            setNodeState(nodeId, { status: 'running', triggerType: 'execution' });
-            focusNode(nodeId);
-          }
-
-          if (eventType === 'STEP_DONE') {
-            const stepStatus = (payload.status as string) || 'completed';
-            const canvasStatus = SSE_TO_CANVAS_STATUS[stepStatus] || 'complete';
-            newEvent.status = stepStatus;
-            newEvent.error = (payload.error as string) || undefined;
-            newEvent.reason = (payload.reason as string) || undefined;
-
+          if (eventType === 'STEP_START') {
             if (nodeId) {
-              setNodeState(nodeId, { status: canvasStatus, triggerType: 'execution' });
+              setNodeState(nodeId, { status: 'running', triggerType: 'execution' });
               focusNode(nodeId);
             }
+            setEvents((prev) => [...prev, {
+              id: eventId,
+              eventType: 'STEP_START',
+              timestamp,
+              nodeId,
+              nodeType,
+              status: 'running',
+              streamedContent: '',
+              payload,
+            }]);
+            return;
+          }
+
+          if (eventType === 'TOKEN_STREAM') {
+            const content = (payload.content as string) || (payload.text as string) || '';
+            if (!content) return;
+
+            if (!responseEntryIdRef.current) {
+              const respId = `resp-${Date.now()}`;
+              responseEntryIdRef.current = respId;
+              tokenBufferRef.current += content;
+              setEvents((prev) => [...prev, {
+                id: respId,
+                eventType: 'RESPONSE',
+                timestamp,
+                streamedContent: '',
+                payload: {},
+              }]);
+              if (rafIdRef.current === null) {
+                rafIdRef.current = requestAnimationFrame(flushTokenBuffer);
+              }
+            } else {
+              tokenBufferRef.current += content;
+              if (rafIdRef.current === null) {
+                rafIdRef.current = requestAnimationFrame(flushTokenBuffer);
+              }
+            }
+            return;
+          }
+
+          if (eventType === 'STEP_DONE' || eventType === 'STEP_COMPLETE') {
+            const stepStatus = (payload.status as string) || 'completed';
+            const canvasStatus = SSE_TO_CANVAS_STATUS[stepStatus] || 'complete';
+            const targetNodeId = nodeId;
+
+            if (targetNodeId) {
+              setNodeState(targetNodeId, { status: canvasStatus, triggerType: 'execution' });
+            }
+
+            setEvents((prev) => {
+              if (!targetNodeId) return prev;
+              const idx = prev.findLastIndex((e) => e.nodeId === targetNodeId && e.status === 'running');
+              if (idx === -1) {
+                return [...prev, {
+                  id: eventId,
+                  eventType: 'STEP_DONE',
+                  timestamp,
+                  nodeId: targetNodeId,
+                  nodeType,
+                  status: stepStatus,
+                  streamedContent: '',
+                  payload,
+                  error: (payload.error as string) || undefined,
+                  reason: (payload.reason as string) || undefined,
+                }];
+              }
+              const entry = prev[idx];
+              const updated = [...prev];
+              updated[idx] = {
+                ...entry,
+                status: stepStatus,
+                endTimestamp: timestamp,
+                error: (payload.error as string) || undefined,
+                reason: (payload.reason as string) || undefined,
+              };
+              return updated;
+            });
+            return;
           }
 
           if (eventType === 'TASK_COMPLETED' || eventType === 'TASK_COMPLETE') {
-            setEvents((prev) => [...prev, newEvent]);
+            // Flush remaining tokens
+            if (rafIdRef.current !== null) {
+              cancelAnimationFrame(rafIdRef.current);
+              rafIdRef.current = null;
+            }
+            const pendingChunk = tokenBufferRef.current;
+            tokenBufferRef.current = '';
+
+            setEvents((prev) => {
+              let base = prev;
+              // Finalize any still-running step entries
+              const hasRunning = base.some((e) => e.status === 'running');
+              if (hasRunning) {
+                base = base.map((e) => (e.status === 'running' ? { ...e, status: 'completed', endTimestamp: timestamp } : e));
+              }
+              // Flush pending tokens into response entry
+              if (pendingChunk && responseEntryIdRef.current) {
+                const rIdx = base.findIndex((e) => e.id === responseEntryIdRef.current);
+                if (rIdx !== -1) {
+                  base = [...base];
+                  base[rIdx] = { ...base[rIdx], streamedContent: base[rIdx].streamedContent + pendingChunk };
+                }
+              }
+              return [...base, {
+                id: eventId,
+                eventType,
+                timestamp,
+                streamedContent: '',
+                payload,
+              }];
+            });
+            responseEntryIdRef.current = null;
             setRunState('completed');
             ctrl.abort();
             return;
           }
 
           if (eventType === 'TASK_FAILED') {
-            newEvent.error = (payload.error as string) || (data.message as string) || 'Execution failed';
-            setEvents((prev) => [...prev, newEvent]);
+            if (rafIdRef.current !== null) {
+              cancelAnimationFrame(rafIdRef.current);
+              rafIdRef.current = null;
+            }
+            const pendingChunk = tokenBufferRef.current;
+            tokenBufferRef.current = '';
+
+            setEvents((prev) => {
+              let base = prev;
+              const hasRunning = base.some((e) => e.status === 'running');
+              if (hasRunning) {
+                base = base.map((e) => (e.status === 'running' ? { ...e, status: 'failed', endTimestamp: timestamp } : e));
+              }
+              if (pendingChunk && responseEntryIdRef.current) {
+                const rIdx = base.findIndex((e) => e.id === responseEntryIdRef.current);
+                if (rIdx !== -1) {
+                  base = [...base];
+                  base[rIdx] = { ...base[rIdx], streamedContent: base[rIdx].streamedContent + pendingChunk };
+                }
+              }
+              return [...base, {
+                id: eventId,
+                eventType,
+                timestamp,
+                streamedContent: '',
+                payload,
+                error: (payload.error as string) || (data.message as string) || 'Execution failed',
+              }];
+            });
+            responseEntryIdRef.current = null;
             setRunState('error');
             ctrl.abort();
             return;
           }
 
-          setEvents((prev) => [...prev, newEvent]);
+          setEvents((prev) => [...prev, {
+            id: eventId,
+            eventType,
+            timestamp,
+            nodeId,
+            nodeType,
+            streamedContent: '',
+            payload,
+          }]);
         } catch { /* skip unparseable frames */ }
       },
       onclose() {
@@ -166,6 +309,7 @@ export default function RunDrawer({ workflowId, canvasRef }: RunDrawerProps) {
           id: `err-${Date.now()}`,
           eventType: 'ERROR',
           timestamp: new Date().toISOString(),
+          streamedContent: '',
           payload: {},
           error: err instanceof Error ? err.message : 'Connection lost',
         }]);
@@ -174,7 +318,7 @@ export default function RunDrawer({ workflowId, canvasRef }: RunDrawerProps) {
         throw err;
       },
     });
-  }, [setNodeState, focusNode]);
+  }, [setNodeState, focusNode, flushTokenBuffer]);
 
   const startRun = useCallback(async () => {
     if (!workflowId) return;
@@ -183,12 +327,18 @@ export default function RunDrawer({ workflowId, canvasRef }: RunDrawerProps) {
     clearAllNodeStates();
     setRunState('running');
     setEvents([]);
+    responseEntryIdRef.current = null;
+    tokenBufferRef.current = '';
+    if (rafIdRef.current !== null) {
+      cancelAnimationFrame(rafIdRef.current);
+      rafIdRef.current = null;
+    }
 
     try {
       const result = await testRunMutation.mutateAsync({
         workflowId,
         message: testMessage.trim() || undefined,
-        modelId: selectedModelId || undefined,
+        modelId: selectedModel?.id || undefined,
       });
       subscribeSSE(result.taskId);
     } catch (err) {
@@ -196,12 +346,13 @@ export default function RunDrawer({ workflowId, canvasRef }: RunDrawerProps) {
         id: `err-${Date.now()}`,
         eventType: 'ERROR',
         timestamp: new Date().toISOString(),
+        streamedContent: '',
         payload: {},
         error: `Failed to start: ${err instanceof Error ? err.message : String(err)}`,
       }]);
       setRunState('error');
     }
-  }, [workflowId, testMessage, selectedModelId, testRunMutation, clearAllNodeStates, subscribeSSE]);
+  }, [workflowId, testMessage, selectedModel, testRunMutation, clearAllNodeStates, subscribeSSE]);
 
   const handleStop = useCallback(() => {
     abortRef.current?.abort();
@@ -213,7 +364,9 @@ export default function RunDrawer({ workflowId, canvasRef }: RunDrawerProps) {
     setEvents([]);
     setRunState('idle');
     setTestMessage('');
-    setSelectedModelId('');
+    setSelectedModel(null);
+    responseEntryIdRef.current = null;
+    tokenBufferRef.current = '';
   }, [clearAllNodeStates]);
 
   const handleClose = useCallback(() => {
@@ -224,7 +377,9 @@ export default function RunDrawer({ workflowId, canvasRef }: RunDrawerProps) {
     setRunState('idle');
     setDepsChecked(false);
     setTestMessage('');
-    setSelectedModelId('');
+    setSelectedModel(null);
+    responseEntryIdRef.current = null;
+    tokenBufferRef.current = '';
   }, [clearAllNodeStates, closeRunDrawer]);
 
   return (
@@ -249,9 +404,8 @@ export default function RunDrawer({ workflowId, canvasRef }: RunDrawerProps) {
             </TabsTrigger>
           </TabsList>
 
-          {/* ─── Run Tab ─── */}
           <TabsContent value="run" className="flex-1 flex flex-col min-h-0 mt-0">
-            <div className="flex-1 overflow-auto p-4 min-h-0">
+            <div className="flex-1 overflow-auto p-4 min-h-0 select-text">
               <ExecutionTimeline events={events} onNodeClick={focusNode} />
               <div ref={scrollRef} />
             </div>
@@ -259,21 +413,7 @@ export default function RunDrawer({ workflowId, canvasRef }: RunDrawerProps) {
             <div className="border-t p-4 space-y-3 shrink-0">
               {runState === 'idle' && (
                 <div className="space-y-2">
-                  <Select value={selectedModelId || '__auto__'} onValueChange={(v) => setSelectedModelId(v === '__auto__' ? '' : v)}>
-                    <SelectTrigger className="h-8 text-xs">
-                      <SelectValue placeholder={modelsLoading ? 'Loading models...' : 'Auto'} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="__auto__" className="text-xs">
-                        Auto (server decides)
-                      </SelectItem>
-                      {models.map((m) => (
-                        <SelectItem key={m.id} value={m.modelId} className="text-xs">
-                          {m.displayName || m.modelId}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <ModelSelector value={selectedModel} onChange={setSelectedModel} />
                   <Input
                     placeholder="Test message (optional)..."
                     value={testMessage}
@@ -311,7 +451,6 @@ export default function RunDrawer({ workflowId, canvasRef }: RunDrawerProps) {
             </div>
           </TabsContent>
 
-          {/* ─── Dependencies Tab ─── */}
           <TabsContent value="deps" className="flex-1 overflow-auto mt-0">
             <DependenciesTab
               workflowId={workflowId}

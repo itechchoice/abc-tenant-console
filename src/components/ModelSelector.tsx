@@ -4,18 +4,17 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronDown, Check, Loader2, Sparkles } from 'lucide-react';
 import { useChatModels } from '@/hooks/useModels';
-import { useChatStore } from '@/stores/chatStore';
 import { cn } from '@/lib/utils';
-import type { ModelResponse } from '@/schemas/modelManagerSchema';
+import type { ChatModel } from '@/http/modelManagerApi';
 
 // ---------------------------------------------------------------------------
 // Dropdown item
 // ---------------------------------------------------------------------------
 
 interface ModelOptionProps {
-  model: ModelResponse;
+  model: ChatModel;
   isSelected: boolean;
-  onSelect: (model: ModelResponse) => void;
+  onSelect: (model: ChatModel) => void;
 }
 
 const ModelOption = memo(({ model, isSelected, onSelect }: ModelOptionProps) => (
@@ -23,21 +22,14 @@ const ModelOption = memo(({ model, isSelected, onSelect }: ModelOptionProps) => 
     type="button"
     onClick={() => onSelect(model)}
     className={cn(
-      'flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left',
+      'flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-left',
       'transition-colors',
       isSelected
         ? 'bg-accent text-accent-foreground'
         : 'text-foreground/70 hover:bg-accent/50',
     )}
   >
-    <div className="flex flex-1 flex-col gap-0.5 min-w-0">
-      <span className="text-xs font-medium truncate">
-        {model.displayName || model.modelId}
-      </span>
-      <span className="text-[10px] text-muted-foreground/50">
-        {model.modelId}
-      </span>
-    </div>
+    <span className="flex-1 min-w-0 text-xs font-medium truncate">{model.id}</span>
     {isSelected && (
       <Check size={13} className="shrink-0 text-primary" />
     )}
@@ -46,16 +38,19 @@ const ModelOption = memo(({ model, isSelected, onSelect }: ModelOptionProps) => 
 ModelOption.displayName = 'ModelOption';
 
 // ---------------------------------------------------------------------------
-// ModelSelector
+// ModelSelector (controlled)
 // ---------------------------------------------------------------------------
 
-export default function ModelSelector() {
+interface ModelSelectorProps {
+  value: ChatModel | null;
+  onChange: (model: ChatModel | null) => void;
+}
+
+export default function ModelSelector({ value, onChange }: ModelSelectorProps) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const { data: models = [], isLoading, isError } = useChatModels();
-  const selectedModel = useChatStore((s) => s.selectedModel);
-  const setSelectedModel = useChatStore((s) => s.setSelectedModel);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -68,15 +63,15 @@ export default function ModelSelector() {
     return () => document.removeEventListener('mousedown', handler);
   }, [open]);
 
-  const handleSelect = useCallback((model: ModelResponse) => {
-    setSelectedModel(model);
+  const handleSelect = useCallback((model: ChatModel) => {
+    onChange(model);
     setOpen(false);
-  }, [setSelectedModel]);
+  }, [onChange]);
 
   const handleSelectAuto = useCallback(() => {
-    setSelectedModel(null);
+    onChange(null);
     setOpen(false);
-  }, [setSelectedModel]);
+  }, [onChange]);
 
   const disabled = isLoading || (isError && models.length === 0);
 
@@ -84,8 +79,8 @@ export default function ModelSelector() {
     ? 'Loading...'
     : isError
       ? 'Unavailable'
-      : selectedModel
-        ? (selectedModel.displayName || selectedModel.modelId)
+      : value
+        ? value.id
         : 'Auto';
 
   return (
@@ -95,23 +90,23 @@ export default function ModelSelector() {
         disabled={disabled}
         onClick={() => setOpen((v) => !v)}
         className={cn(
-          'flex items-center gap-0.5 rounded py-0.5 px-1 -mx-1',
-          'text-xs text-muted-foreground/50',
-          'transition-colors hover:text-muted-foreground',
+          'inline-flex items-center gap-1 rounded py-0.5 px-1.5',
+          'text-xs text-muted-foreground/70 leading-[16px]',
+          'transition-colors hover:text-foreground/80',
           'disabled:opacity-40 disabled:cursor-not-allowed',
         )}
       >
         {isLoading && (
-          <Loader2 size={11} className="mr-0.5 animate-spin" />
+          <Loader2 size={12} className="shrink-0 animate-spin" />
         )}
-        {!isLoading && !selectedModel && (
-          <Sparkles size={11} className="mr-0.5 text-primary/50" />
+        {!isLoading && !value && (
+          <Sparkles size={12} className="shrink-0 text-primary/60" />
         )}
         <span>{label}</span>
         <ChevronDown
           size={11}
           className={cn(
-            'transition-transform duration-200',
+            'shrink-0 transition-transform duration-200',
             open && 'rotate-180',
           )}
         />
@@ -125,7 +120,7 @@ export default function ModelSelector() {
             exit={{ opacity: 0, y: 6, scale: 0.97 }}
             transition={{ type: 'spring', stiffness: 420, damping: 28 }}
             className={cn(
-              'absolute right-0 bottom-full z-50 mb-2 min-w-[200px]',
+              'absolute right-0 bottom-full z-50 mb-2 min-w-[220px]',
               'rounded-xl border border-border/60 bg-popover p-1',
               'shadow-[0_-4px_24px_rgba(0,0,0,0.08)]',
             )}
@@ -134,21 +129,16 @@ export default function ModelSelector() {
               type="button"
               onClick={handleSelectAuto}
               className={cn(
-                'flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left',
+                'flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-left',
                 'transition-colors',
-                !selectedModel
+                !value
                   ? 'bg-accent text-accent-foreground'
                   : 'text-foreground/70 hover:bg-accent/50',
               )}
             >
               <Sparkles size={13} className="shrink-0 text-primary/60" />
-              <div className="flex flex-1 flex-col gap-0.5 min-w-0">
-                <span className="text-xs font-medium">Auto</span>
-                <span className="text-[10px] text-muted-foreground/50">
-                  Server decides the best model
-                </span>
-              </div>
-              {!selectedModel && (
+              <span className="flex-1 min-w-0 text-xs font-medium">Auto</span>
+              {!value && (
                 <Check size={13} className="shrink-0 text-primary" />
               )}
             </button>
@@ -160,7 +150,7 @@ export default function ModelSelector() {
                   <ModelOption
                     key={model.id}
                     model={model}
-                    isSelected={selectedModel?.id === model.id}
+                    isSelected={value?.id === model.id}
                     onSelect={handleSelect}
                   />
                 ))}
