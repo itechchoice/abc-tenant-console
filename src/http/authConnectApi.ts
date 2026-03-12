@@ -1,4 +1,4 @@
-import { apiClient, type ApiResponse, unwrap } from './client';
+import { apiClient, type ApiResponse, mcpApiClient, unwrap } from './client';
 import type { AuthParamConfig } from '@/schemas/mcpManagerSchema';
 
 // ---------------------------------------------------------------------------
@@ -32,7 +32,7 @@ export async function submitUserCredentials(
   serverId: string,
   payload: UserCredentialPayload,
 ): Promise<UserCredentialResponse> {
-  const res: ApiResponse<UserCredentialResponse> = await apiClient.post(
+  const res: ApiResponse<UserCredentialResponse> = await mcpApiClient.post(
     `/mcp/user/servers/${serverId}/auth`,
     payload,
   );
@@ -61,7 +61,7 @@ export async function initiateUserOAuth2(
   serverId: string,
   payload: UserOAuth2Payload,
 ): Promise<UserOAuth2Response> {
-  const res: ApiResponse<UserOAuth2Response> = await apiClient.post(
+  const res: ApiResponse<UserOAuth2Response> = await mcpApiClient.post(
     `/mcp/user/servers/${serverId}/auth`,
     payload,
   );
@@ -81,7 +81,7 @@ export interface UserAuthStatus {
 }
 
 export async function fetchUserAuthStatus(serverId: string): Promise<UserAuthStatus> {
-  const res: ApiResponse<UserAuthStatus> = await apiClient.get(
+  const res: ApiResponse<UserAuthStatus> = await mcpApiClient.get(
     `/mcp/user/servers/${serverId}/auth`,
   );
   return unwrap(res);
@@ -108,7 +108,7 @@ export async function testAdminConnection(
   serverId: string,
   payload: AdminTestConnectionPayload,
 ): Promise<AdminTestConnectionResponse> {
-  const res: ApiResponse<AdminTestConnectionResponse> = await apiClient.post(
+  const res: ApiResponse<AdminTestConnectionResponse> = await mcpApiClient.post(
     `/mcp/admin/servers/${serverId}/test-connection`,
     payload,
   );

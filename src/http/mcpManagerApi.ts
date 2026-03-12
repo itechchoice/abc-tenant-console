@@ -63,21 +63,21 @@ export interface PublishCheckResponse {
 }
 
 export async function checkPublish(serverId: string): Promise<PublishCheckResponse> {
-  const res: ApiResponse<PublishCheckResponse> = await apiClient.get(
+  const res: ApiResponse<PublishCheckResponse> = await mcpApiClient.get(
     `${ADMIN_SERVERS}/${serverId}/publish-check`,
   );
   return unwrap(res);
 }
 
 export async function publishServer(serverId: string): Promise<PublishCheckResponse> {
-  const res: ApiResponse<PublishCheckResponse> = await apiClient.post(
+  const res: ApiResponse<PublishCheckResponse> = await mcpApiClient.post(
     `${ADMIN_SERVERS}/${serverId}/publish`,
   );
   return unwrap(res);
 }
 
 export async function unpublishServer(serverId: string): Promise<PublishCheckResponse> {
-  const res: ApiResponse<PublishCheckResponse> = await apiClient.post(
+  const res: ApiResponse<PublishCheckResponse> = await mcpApiClient.post(
     `${ADMIN_SERVERS}/${serverId}/unpublish`,
   );
   return unwrap(res);
@@ -94,7 +94,7 @@ export async function initiateOAuthConnect(
   serverId: string,
   returnUrl: string,
 ): Promise<OAuthInitResponse> {
-  const res: ApiResponse<OAuthInitResponse> = await apiClient.post(
+  const res: ApiResponse<OAuthInitResponse> = await mcpApiClient.post(
     `/mcp/user/servers/${serverId}/auth`,
     { returnUrl },
   );
@@ -158,15 +158,19 @@ export async function deleteServerAuthConfig(serverId: string): Promise<void> {
 
 export interface UserConnectionServer {
   serverId: string;
-  authenticated: boolean;
+  serverCode?: string;
+  serverName?: string;
+  authType?: string;
   connectionId?: string;
   connectionName?: string;
-  status?: string;
+  connectionStatus?: 'ACTIVE' | 'DISABLED' | 'PENDING';
+  isTest?: boolean;
   connectedAt?: string;
+  connectionUpdatedAt?: string;
 }
 
 export async function fetchUserConnectionServers(): Promise<UserConnectionServer[]> {
-  const res: ApiResponse<UserConnectionServer[]> = await apiClient.get(
+  const res: ApiResponse<UserConnectionServer[]> = await mcpApiClient.get(
     '/mcp/user/connections/servers',
   );
   return unwrap(res);

@@ -1,4 +1,5 @@
 import { motion } from 'framer-motion';
+import { Check, Minus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
@@ -9,12 +10,67 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import type { McpServer } from '@/schemas/mcpManagerSchema';
+import type { McpServerWithConnection } from '../hooks/useMCPList';
 import ActionMenu from './ActionMenu';
 
 // ---------------------------------------------------------------------------
-// Helpers
+// Connect button — reflects userConnection.connectionStatus
 // ---------------------------------------------------------------------------
+
+type ConnectionStatus = 'ACTIVE' | 'DISABLED' | 'PENDING';
+
+const CONNECTION_CONFIG: Record<ConnectionStatus, {
+  label: string;
+  icon?: React.ReactNode;
+  className: string;
+}> = {
+  ACTIVE: {
+    label: 'Connected',
+    icon: <Check className="h-3 w-3" />,
+    className: 'h-6 px-2.5 text-[11px] bg-emerald-500 hover:bg-emerald-600 text-white border-transparent',
+  },
+  DISABLED: {
+    label: 'Disconnected',
+    icon: <Minus className="h-3 w-3" />,
+    className: 'h-6 px-2.5 text-[11px] bg-rose-500 hover:bg-rose-600 text-white border-transparent',
+  },
+  PENDING: {
+    label: '···',
+    className: 'h-6 px-2.5 text-[11px] bg-amber-400 hover:bg-amber-500 text-white border-transparent',
+  },
+};
+
+function ConnectButton({
+  connectionStatus,
+  onClick,
+}: {
+  connectionStatus?: string;
+  onClick: () => void;
+}) {
+  if (!connectionStatus) {
+    return (
+      <Button variant="outline" size="sm" className="h-6 px-2.5 text-[11px] text-slate-600" onClick={onClick}>
+        Connect
+      </Button>
+    );
+  }
+
+  const config = CONNECTION_CONFIG[connectionStatus as ConnectionStatus];
+  if (!config) {
+    return (
+      <Button variant="outline" size="sm" className="h-6 px-2.5 text-[11px] text-slate-600" onClick={onClick}>
+        Connect
+      </Button>
+    );
+  }
+
+  return (
+    <Button variant="outline" size="sm" className={config.className} onClick={onClick}>
+      {config.icon && <span className="mr-1">{config.icon}</span>}
+      {config.label}
+    </Button>
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Sub-components
@@ -62,7 +118,7 @@ function ServerIcon({ icon, name }: { icon?: string; name: string }) {
 // ---------------------------------------------------------------------------
 
 interface McpCardProps {
-  mcp: McpServer;
+  mcp: McpServerWithConnection;
   isUpdating?: boolean;
   onDetail: () => void;
   onEdit: () => void;
@@ -181,16 +237,12 @@ export default function McpCard({
             </Button>
           )}
 
-          {/* Auth button — shown for all auth types except NONE */}
+          {/* Connect button — shown for all auth types except NONE */}
           {needsAuth && (
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-6 px-2.5 text-[11px] text-slate-600"
+            <ConnectButton
+              connectionStatus={mcp.userConnection?.connectionStatus}
               onClick={onConnect}
-            >
-              Connect
-            </Button>
+            />
           )}
 
           {/* Spacer */}

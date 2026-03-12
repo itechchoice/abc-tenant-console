@@ -1,17 +1,17 @@
 import { motion } from 'framer-motion';
 import { Skeleton } from '@/components/ui/skeleton';
-import type { McpServer } from '@/schemas/mcpManagerSchema';
 import { useMcpManagerStore } from '@/stores/mcpManagerStore';
+import type { McpServerWithConnection } from '../hooks/useMCPList';
 import McpCard from './McpCard';
 
 interface McpCardGridProps {
-  servers: McpServer[];
+  servers: McpServerWithConnection[];
   isLoading: boolean;
   onPublish: (id: string) => void;
   onUnpublish: (id: string) => void;
   onDelete: (id: string) => void;
   onSync: (id: string) => void;
-  onConnect: (server: McpServer) => void;
+  onConnect: (server: McpServerWithConnection) => void;
 }
 
 export default function McpCardGrid({

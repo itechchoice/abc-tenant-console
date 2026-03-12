@@ -6,7 +6,7 @@ import {
   Pagination, PaginationContent, PaginationItem,
   PaginationPrevious, PaginationNext, PaginationLink,
 } from '@/components/ui/pagination';
-import type { McpServer } from '@/schemas/mcpManagerSchema';
+import type { McpServerWithConnection } from './hooks/useMCPList';
 import ConnectorAuth from '@/components/Auth';
 import { fetchServerAuthParams } from '@/http/mcpManagerApi';
 import { useMCPList } from './hooks/useMCPList';
@@ -33,7 +33,7 @@ export default function MCPManager() {
 
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [unpublishTarget, setUnpublishTarget] = useState<string | null>(null);
-  const [connectTarget, setConnectTarget] = useState<McpServer | null>(null);
+  const [connectTarget, setConnectTarget] = useState<McpServerWithConnection | null>(null);
 
   const stats = useMemo(() => {
     const servers = data?.content ?? [];
@@ -56,7 +56,7 @@ export default function MCPManager() {
 
   const handleSync = useCallback((id: string) => syncMutation.mutate(id), [syncMutation]);
 
-  const handleConnect = useCallback((server: McpServer) => setConnectTarget(server), []);
+  const handleConnect = useCallback((server: McpServerWithConnection) => setConnectTarget(server), []);
 
   // Fetch USER-level auth params when a server is selected for auth
   const { data: rawAuthParams = [], isLoading: isLoadingAuthParams } = useQuery({
