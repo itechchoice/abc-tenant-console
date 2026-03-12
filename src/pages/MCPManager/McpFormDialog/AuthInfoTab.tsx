@@ -8,21 +8,16 @@ import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible';
 import { Badge } from '@/components/ui/badge';
-import { useAuthTemplate } from '../hooks/useAuthTemplates';
+import { Skeleton } from '@/components/ui/skeleton';
+import { useAuthTemplates, useAuthTemplate } from '../hooks/useAuthTemplates';
 import type { AuthParamConfig } from '@/schemas/mcpManagerSchema';
 
 interface AuthInfoTabProps {
   form: UseFormReturn<any>;
 }
 
-const AUTH_TYPE_LABELS: Record<string, string> = {
-  NONE: 'None',
-  API_KEY: 'API Key',
-  BASIC: 'Basic Auth',
-  OAUTH2: 'OAuth2',
-  BEARER_TOKEN: 'Bearer Token',
-  CUSTOM: 'Custom',
-};
+// Fallback for NONE which the API may not return as a template
+const NONE_OPTION = { authType: 'NONE', authTypeName: 'None', description: 'No authentication required' };
 
 const PARAM_TYPE_OPTIONS = [
   { value: 'STRING', label: 'String' },
@@ -62,7 +57,15 @@ export default function AuthInfoTab({ form }: AuthInfoTabProps) {
   const authType = form.watch('authType');
   const authParams: AuthParamConfig[] = form.watch('authParamConfigs') ?? [];
 
+  const { data: templates, isLoading: isLoadingTemplates } = useAuthTemplates();
   const { data: template, isFetching: isLoadingTemplate } = useAuthTemplate(authType);
+
+  // Build options: always include NONE first, then API results (deduplicated)
+  const authTypeOptions = (() => {
+    const list = templates ?? [];
+    const hasNone = list.some((t) => t.authType === 'NONE');
+    return hasNone ? list : [NONE_OPTION, ...list];
+  })();
 
   useEffect(() => {
     if (template?.paramTemplates && template.paramTemplates.length > 0) {
@@ -105,15 +108,31 @@ export default function AuthInfoTab({ form }: AuthInfoTabProps) {
             <Select
               onValueChange={(v) => handleAuthTypeChange(v, field.onChange)}
               value={field.value}
+              disabled={isLoadingTemplates}
             >
               <FormControl>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
+                {isLoadingTemplates ? (
+                  <Skeleton className="h-9 w-full rounded-md" />
+                ) : (
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select auth type" />
+                  </SelectTrigger>
+                )}
               </FormControl>
               <SelectContent>
-                {Object.entries(AUTH_TYPE_LABELS).map(([value, label]) => (
-                  <SelectItem key={value} value={value}>{label}</SelectItem>
+                {authTypeOptions.map((opt) => (
+                  <SelectItem key={opt.authType} value={opt.authType}>
+                    <div className="flex flex-col gap-0.5 py-0.5">
+                      <span className="font-medium text-sm">
+                        {opt.authTypeName ?? opt.authType}
+                      </span>
+                      {'description' in opt && opt.description && (
+                        <span className="text-xs text-muted-foreground leading-tight">
+                          {opt.description}
+                        </span>
+                      )}
+                    </div>
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>

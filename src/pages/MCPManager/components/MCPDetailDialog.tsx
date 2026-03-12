@@ -14,6 +14,17 @@ import { useSyncTools } from '../hooks/useMCPMutations';
 import { useServerAuthConfig, useSaveServerAuthConfig, useDeleteServerAuthConfig } from '../hooks/useServerAuthConfig';
 import CategoryEditorSection from './CategoryEditorSection';
 
+function formatRelativeTime(dateStr?: string): string {
+  if (!dateStr) return '';
+  const diffMs = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diffMs / 60_000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins} min ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return `${Math.floor(hours / 24)}d ago`;
+}
+
 export default function MCPDetailDialog() {
   const { detailModal, closeDetailModal } = useMcpManagerStore();
   const { data: mcp, isLoading } = useMCPDetail(detailModal.serverId);
@@ -157,8 +168,12 @@ export default function MCPDetailDialog() {
                 </>
               )}
 
-              <div className="flex justify-end gap-2 pt-2">
-                <Button variant="outline" onClick={closeDetailModal}>Close</Button>
+              <div className="flex justify-end pt-2">
+                {mcp.updatedAt && (
+                  <span className="text-xs text-muted-foreground">
+                    Synced {formatRelativeTime(mcp.updatedAt)}
+                  </span>
+                )}
               </div>
             </div>
           )}

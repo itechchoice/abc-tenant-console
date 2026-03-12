@@ -9,7 +9,7 @@ import type {
 // MCP Server CRUD
 // ---------------------------------------------------------------------------
 
-const ADMIN_SERVERS = '/mcp/admin/servers';
+const ADMIN_SERVERS = '/mcp-gateway/mcp/admin/servers';
 
 export async function fetchMCPList(params: McpListParams = {}): Promise<McpListResponse> {
   const res: ApiResponse<McpListResponse> = await mcpApiClient.get(ADMIN_SERVERS, { params });
@@ -45,6 +45,59 @@ export async function checkServerName(name: string): Promise<boolean> {
 
 export async function syncServerTools(serverId: string): Promise<McpTool[]> {
   const res: ApiResponse<McpTool[]> = await mcpApiClient.post(`${ADMIN_SERVERS}/${serverId}/sync`);
+  return unwrap(res);
+}
+
+export interface PublishCheckResponse {
+  canPublish: boolean;
+  needsTenantConfig: boolean;
+  tenantConfigCompleted: boolean;
+  missingConfigItems: Array<{
+    name: string;
+    key: string;
+    category: string;
+    description: string;
+    required: boolean;
+  }>;
+  message: string;
+}
+
+export async function checkPublish(serverId: string): Promise<PublishCheckResponse> {
+  const res: ApiResponse<PublishCheckResponse> = await apiClient.get(
+    `${ADMIN_SERVERS}/${serverId}/publish-check`,
+  );
+  return unwrap(res);
+}
+
+export async function publishServer(serverId: string): Promise<PublishCheckResponse> {
+  const res: ApiResponse<PublishCheckResponse> = await apiClient.post(
+    `${ADMIN_SERVERS}/${serverId}/publish`,
+  );
+  return unwrap(res);
+}
+
+export async function unpublishServer(serverId: string): Promise<PublishCheckResponse> {
+  const res: ApiResponse<PublishCheckResponse> = await apiClient.post(
+    `${ADMIN_SERVERS}/${serverId}/unpublish`,
+  );
+  return unwrap(res);
+}
+
+export interface OAuthInitResponse {
+  redirectUrl?: string;
+  success?: boolean;
+  connectionId?: string;
+  message?: string;
+}
+
+export async function initiateOAuthConnect(
+  serverId: string,
+  returnUrl: string,
+): Promise<OAuthInitResponse> {
+  const res: ApiResponse<OAuthInitResponse> = await apiClient.post(
+    `/mcp/user/servers/${serverId}/auth`,
+    { returnUrl },
+  );
   return unwrap(res);
 }
 
@@ -100,10 +153,30 @@ export async function deleteServerAuthConfig(serverId: string): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
+// User connection status per server
+// ---------------------------------------------------------------------------
+
+export interface UserConnectionServer {
+  serverId: string;
+  authenticated: boolean;
+  connectionId?: string;
+  connectionName?: string;
+  status?: string;
+  connectedAt?: string;
+}
+
+export async function fetchUserConnectionServers(): Promise<UserConnectionServer[]> {
+  const res: ApiResponse<UserConnectionServer[]> = await apiClient.get(
+    '/mcp-gateway/mcp/user/connections/servers',
+  );
+  return unwrap(res);
+}
+
+// ---------------------------------------------------------------------------
 // Auth Config Templates
 // ---------------------------------------------------------------------------
 
-const AUTH_TEMPLATES = '/mcp/admin/auth-params/templates';
+const AUTH_TEMPLATES = '/mcp-gateway/mcp/admin/auth-params/templates';
 
 export async function fetchAuthTemplates(): Promise<AuthConfigTemplate[]> {
   const res: ApiResponse<AuthConfigTemplate[]> = await mcpApiClient.get(AUTH_TEMPLATES);
@@ -119,7 +192,7 @@ export async function fetchAuthTemplate(authType: string): Promise<AuthConfigTem
 // Categories
 // ---------------------------------------------------------------------------
 
-const ADMIN_CATEGORIES = '/mcp/admin/categories';
+const ADMIN_CATEGORIES = '/mcp-gateway/mcp/admin/categories';
 
 export async function fetchCategories(): Promise<McpCategory[]> {
   const res: ApiResponse<McpCategory[]> = await mcpApiClient.get(ADMIN_CATEGORIES);

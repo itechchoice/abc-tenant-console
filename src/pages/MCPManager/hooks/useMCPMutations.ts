@@ -3,6 +3,7 @@ import { useMcpManagerStore } from '@/stores/mcpManagerStore';
 import type { CreateMcpPayload, UpdateMcpPayload } from '@/schemas/mcpManagerSchema';
 import {
   createMCP, updateMCP, deleteMCP, syncServerTools,
+  publishServer, unpublishServer,
 } from '@/http/mcpManagerApi';
 import { mcpQueryKeys } from './useMCPList';
 
@@ -68,6 +69,40 @@ export function useSyncTools() {
     onSuccess: (_data, serverId) => {
       qc.invalidateQueries({ queryKey: mcpQueryKeys.detail(serverId) });
       qc.invalidateQueries({ queryKey: mcpQueryKeys.lists() });
+    },
+  });
+}
+
+export function usePublishServer() {
+  const qc = useQueryClient();
+  const { addUpdatingMcp, removeUpdatingMcp } = useMcpManagerStore();
+
+  return useMutation({
+    mutationFn: (serverId: string) => {
+      addUpdatingMcp(serverId);
+      return publishServer(serverId);
+    },
+    onSettled: (_data, _err, serverId) => {
+      removeUpdatingMcp(serverId);
+      qc.invalidateQueries({ queryKey: mcpQueryKeys.lists() });
+      qc.invalidateQueries({ queryKey: mcpQueryKeys.detail(serverId) });
+    },
+  });
+}
+
+export function useUnpublishServer() {
+  const qc = useQueryClient();
+  const { addUpdatingMcp, removeUpdatingMcp } = useMcpManagerStore();
+
+  return useMutation({
+    mutationFn: (serverId: string) => {
+      addUpdatingMcp(serverId);
+      return unpublishServer(serverId);
+    },
+    onSettled: (_data, _err, serverId) => {
+      removeUpdatingMcp(serverId);
+      qc.invalidateQueries({ queryKey: mcpQueryKeys.lists() });
+      qc.invalidateQueries({ queryKey: mcpQueryKeys.detail(serverId) });
     },
   });
 }
