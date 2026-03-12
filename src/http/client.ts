@@ -54,7 +54,6 @@ function createServiceClient(servicePath: string) {
   });
 }
 
-<<<<<<< Updated upstream
 export const authApiBaseUrl = normalizeApiBasePath('/auth-server');
 export const engineApiBaseUrl = normalizeApiBasePath('/engine');
 export const llmGatewayApiBaseUrl = normalizeApiBasePath('/llm-gateway');
@@ -82,15 +81,6 @@ clients.forEach((client) => {
       }
       if (!config.headers['X-Request-Id']) {
         config.headers['X-Request-Id'] = createRequestId();
-=======
-apiClient.interceptors.response.use(
-  (response) => response.data,
-  (error) => {
-    if (axios.isAxiosError(error) && error.response?.status === 401) {
-      debugger
-      if (authConfig.devBypassEnabled) {
-        return Promise.reject(error);
->>>>>>> Stashed changes
       }
 
       return config;

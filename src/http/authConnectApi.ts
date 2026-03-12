@@ -7,7 +7,7 @@ import type { AuthParamConfig } from '@/schemas/mcpManagerSchema';
 
 export async function fetchUserAuthParams(serverId: string): Promise<AuthParamConfig[]> {
   const res: ApiResponse<AuthParamConfig[]> = await apiClient.get(
-    `/mcp-gateway/mcp/user/mcp-servers/${serverId}/auth-params`,
+    `/mcp/user/mcp-servers/${serverId}/auth-params`,
   );
   return unwrap(res);
 }
@@ -33,7 +33,7 @@ export async function submitUserCredentials(
   payload: UserCredentialPayload,
 ): Promise<UserCredentialResponse> {
   const res: ApiResponse<UserCredentialResponse> = await apiClient.post(
-    `/mcp-gateway/mcp/user/servers/${serverId}/auth`,
+    `/mcp/user/servers/${serverId}/auth`,
     payload,
   );
   return unwrap(res);
@@ -62,7 +62,7 @@ export async function initiateUserOAuth2(
   payload: UserOAuth2Payload,
 ): Promise<UserOAuth2Response> {
   const res: ApiResponse<UserOAuth2Response> = await apiClient.post(
-    `/mcp-gateway/mcp/user/servers/${serverId}/auth`,
+    `/mcp/user/servers/${serverId}/auth`,
     payload,
   );
   return unwrap(res);
@@ -82,7 +82,7 @@ export interface UserAuthStatus {
 
 export async function fetchUserAuthStatus(serverId: string): Promise<UserAuthStatus> {
   const res: ApiResponse<UserAuthStatus> = await apiClient.get(
-    `/mcp-gateway/mcp/user/servers/${serverId}/auth`,
+    `/mcp/user/servers/${serverId}/auth`,
   );
   return unwrap(res);
 }
@@ -109,7 +109,7 @@ export async function testAdminConnection(
   payload: AdminTestConnectionPayload,
 ): Promise<AdminTestConnectionResponse> {
   const res: ApiResponse<AdminTestConnectionResponse> = await apiClient.post(
-    `/mcp-gateway/mcp/admin/servers/${serverId}/test-connection`,
+    `/mcp/admin/servers/${serverId}/test-connection`,
     payload,
   );
   return unwrap(res);
