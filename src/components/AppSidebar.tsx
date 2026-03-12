@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
-import { NavLink, useLocation, useNavigate } from 'react-router-dom';
-import { MessageSquare, ServerCog, GitBranch, BrainCircuit, ChartNoAxesCombined, User, ChevronLeft, ChevronRight, LogOut } from 'lucide-react';
+import { NavLink, useLocation } from 'react-router-dom';
+import { MessageSquare, ServerCog, GitBranch, BrainCircuit, ChartNoAxesCombined, ChevronLeft, ChevronRight, LogOut } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/stores/authStore';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -26,7 +26,6 @@ function getInitialCollapsed(): boolean {
 export default function AppSidebar() {
   const [collapsed, setCollapsed] = useState(getInitialCollapsed);
   const location = useLocation();
-  const navigate = useNavigate();
   const logout = useAuthStore((s) => s.logout);
 
   const isWorkflowEditor = location.pathname.startsWith('/workflow-editor');
@@ -103,26 +102,6 @@ export default function AppSidebar() {
 
         {/* Bottom actions */}
         <div className="border-t py-2 space-y-0.5">
-          {/* Profile */}
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                onClick={() => navigate('/profile')}
-                className={cn(
-                  'flex items-center gap-3 rounded-lg mx-2 transition-colors text-muted-foreground hover:bg-accent hover:text-foreground',
-                  collapsed ? 'justify-center h-10 w-10 mx-auto' : 'h-9 px-3 w-[calc(100%-16px)]',
-                  location.pathname === '/profile' && 'bg-primary/10 text-primary',
-                )}
-              >
-                <User className="h-4 w-4 shrink-0" />
-                {!collapsed && <span className="text-sm">Profile</span>}
-              </button>
-            </TooltipTrigger>
-            {collapsed && (
-              <TooltipContent side="right" sideOffset={8}>Profile</TooltipContent>
-            )}
-          </Tooltip>
-
           {/* Logout */}
           <Tooltip>
             <TooltipTrigger asChild>

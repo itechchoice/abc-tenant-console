@@ -38,6 +38,7 @@ interface ModelManagerState {
   // Model (under provider)
   modelFormDialog: FormDialogState;
   openCreateModel: (providerId: string) => void;
+  openCreateModelGlobal: () => void;
   openEditModel: (modelId: string, providerId: string) => void;
   closeModelForm: () => void;
 
@@ -88,6 +89,7 @@ export const useModelManagerStore = create<ModelManagerState>((set) => ({
 
   modelFormDialog: { open: false, mode: 'create' },
   openCreateModel: (providerId) => set({ modelFormDialog: { open: true, mode: 'create', parentId: providerId } }),
+  openCreateModelGlobal: () => set({ modelFormDialog: { open: true, mode: 'create' } }),
   openEditModel: (modelId, providerId) => set({ modelFormDialog: { open: true, mode: 'edit', id: modelId, parentId: providerId } }),
   closeModelForm: () => set({ modelFormDialog: { open: false, mode: 'create' } }),
 

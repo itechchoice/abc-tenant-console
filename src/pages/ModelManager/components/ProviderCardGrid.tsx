@@ -11,7 +11,7 @@ interface Props {
 }
 
 export default function ProviderCardGrid({ providers, isLoading, onDelete, onToggleStatus }: Props) {
-  const { updatingIds, openProviderDetail, openEditProvider } = useModelManagerStore();
+  const { updatingIds, openProviderDetail, openEditProvider, openCreateModel } = useModelManagerStore();
 
   if (isLoading) {
     return (
@@ -36,6 +36,7 @@ export default function ProviderCardGrid({ providers, isLoading, onDelete, onTog
           onEdit={() => openEditProvider(p.id)}
           onDelete={() => onDelete(p.id)}
           onToggleStatus={() => onToggleStatus(p.id)}
+          onAddModel={() => openCreateModel(p.id)}
         />
       ))}
     </div>

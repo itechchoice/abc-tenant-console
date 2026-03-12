@@ -6,7 +6,7 @@ import { useModelManagerStore } from '@/stores/modelManagerStore';
 import { PROVIDER_TYPES } from '@/schemas/modelManagerSchema';
 
 export default function ProviderHeader() {
-  const { providerSearch, setProviderSearch, providerTypeFilter, setProviderTypeFilter, openCreateProvider } = useModelManagerStore();
+  const { providerSearch, setProviderSearch, providerTypeFilter, setProviderTypeFilter, openCreateProvider, openCreateModelGlobal } = useModelManagerStore();
 
   return (
     <div className="flex items-center justify-between gap-4">
@@ -30,8 +30,11 @@ export default function ProviderHeader() {
           <Search className="absolute left-2.5 top-2 h-4 w-4 text-muted-foreground" />
           <Input placeholder="Search..." className="pl-9 w-48 h-9" value={providerSearch} onChange={(e) => setProviderSearch(e.target.value)} />
         </div>
+        <Button variant="outline" size="sm" onClick={openCreateModelGlobal}>
+          <Plus className="h-4 w-4 mr-1" />Add Model
+        </Button>
         <Button size="sm" onClick={openCreateProvider}>
-          <Plus className="h-4 w-4 mr-1" />Create
+          <Plus className="h-4 w-4 mr-1" />Create Provider
         </Button>
       </div>
     </div>

@@ -1,3 +1,4 @@
+import { Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -13,9 +14,10 @@ interface Props {
   onEdit: () => void;
   onDelete: () => void;
   onToggleStatus: () => void;
+  onAddModel: () => void;
 }
 
-export default function ProviderCard({ provider, isUpdating, onDetail, onEdit, onDelete, onToggleStatus }: Props) {
+export default function ProviderCard({ provider, isUpdating, onDetail, onEdit, onDelete, onToggleStatus, onAddModel }: Props) {
   return (
     <Card className="group relative transition-shadow hover:shadow-md">
       {isUpdating && (
@@ -48,7 +50,12 @@ export default function ProviderCard({ provider, isUpdating, onDetail, onEdit, o
         )}
 
         <div className="mt-4 flex items-center justify-between">
-          <Button variant="outline" size="sm" onClick={onDetail}>Details</Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={onDetail}>Details</Button>
+            <Button variant="ghost" size="sm" onClick={onAddModel}>
+              <Plus className="h-3.5 w-3.5 mr-1" />Add Model
+            </Button>
+          </div>
           <Badge variant={provider.enabled ? 'default' : 'secondary'} className="text-[10px]">
             {provider.enabled ? 'Active' : 'Disabled'}
           </Badge>
