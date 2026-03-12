@@ -19,21 +19,30 @@ import { useChatModels } from '@/hooks/useModels';
 import { useAuthStore } from '@/stores/authStore';
 import { engineApiBaseUrl } from '@/http/client';
 import DependenciesTab from './DependenciesTab';
+import ExecutionTimeline from './ExecutionTimeline';
+import type { ExecutionEvent } from './ExecutionTimeline';
 
 interface RunDrawerProps {
   workflowId?: string;
   canvasRef?: React.RefObject<CanvasAreaHandle | null>;
 }
 
-interface RunMessage {
-  id: string;
-  type: 'system' | 'node' | 'user' | 'result';
-  content: string;
-  nodeId?: string;
-  status?: string;
-}
-
 type RunState = 'idle' | 'running' | 'completed' | 'error';
+
+const SSE_TO_CANVAS_STATUS: Record<string, string> = {
+  STEP_START: 'running',
+  completed: 'complete',
+  skipped: 'skipped',
+  failed: 'error',
+};
+
+function parsePayload(raw: unknown): Record<string, unknown> {
+  if (typeof raw === 'string') {
+    try { return JSON.parse(raw); } catch { return {}; }
+  }
+  if (raw && typeof raw === 'object') return raw as Record<string, unknown>;
+  return {};
+}
 
 export default function RunDrawer({ workflowId, canvasRef }: RunDrawerProps) {
   const { runDrawerOpen, closeRunDrawer } = useWorkflowEditorLocalStore();
@@ -41,19 +50,19 @@ export default function RunDrawer({ workflowId, canvasRef }: RunDrawerProps) {
   const testRunMutation = useTestRunWorkflow();
 
   const [runState, setRunState] = useState<RunState>('idle');
-  const [messages, setMessages] = useState<RunMessage[]>([]);
+  const [events, setEvents] = useState<ExecutionEvent[]>([]);
   const [testMessage, setTestMessage] = useState('');
   const [selectedModelId, setSelectedModelId] = useState<string>('');
   const [activeTab, setActiveTab] = useState<string>('run');
   const abortRef = useRef<AbortController | null>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   const { data: models = [], isLoading: modelsLoading } = useChatModels();
   const [depsChecked, setDepsChecked] = useState(false);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+    scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [events]);
 
   useEffect(() => {
     if (!runDrawerOpen) {
@@ -71,12 +80,7 @@ export default function RunDrawer({ workflowId, canvasRef }: RunDrawerProps) {
     });
   }, [canvasRef]);
 
-  const subscribeSSE = useCallback((taskId: string, sessionId: string) => {
-    setMessages((prev) => [
-      ...prev,
-      { id: `task-${taskId}`, type: 'system', content: `Task ${taskId} (session ${sessionId}) created` },
-    ]);
-
+  const subscribeSSE = useCallback((taskId: string) => {
     abortRef.current?.abort();
     const ctrl = new AbortController();
     abortRef.current = ctrl;
@@ -101,47 +105,56 @@ export default function RunDrawer({ workflowId, canvasRef }: RunDrawerProps) {
         const eventType = evt.event;
         try {
           const data = JSON.parse(evt.data);
+          const payload = parsePayload(data.payload);
+          const eventId = (data.eventId as string) || `sse-${Date.now()}`;
+          const timestamp = (data.timestamp as string) || new Date().toISOString();
+
+          const nodeId = (payload.nodeId as string) || undefined;
+          const nodeType = (payload.nodeType as string) || undefined;
+
+          const newEvent: ExecutionEvent = {
+            id: eventId,
+            eventType,
+            timestamp,
+            nodeId,
+            nodeType,
+            payload,
+          };
+
+          if (eventType === 'STEP_START' && nodeId) {
+            setNodeState(nodeId, { status: 'running', triggerType: 'execution' });
+            focusNode(nodeId);
+          }
+
+          if (eventType === 'STEP_DONE') {
+            const stepStatus = (payload.status as string) || 'completed';
+            const canvasStatus = SSE_TO_CANVAS_STATUS[stepStatus] || 'complete';
+            newEvent.status = stepStatus;
+            newEvent.error = (payload.error as string) || undefined;
+            newEvent.reason = (payload.reason as string) || undefined;
+
+            if (nodeId) {
+              setNodeState(nodeId, { status: canvasStatus, triggerType: 'execution' });
+              focusNode(nodeId);
+            }
+          }
 
           if (eventType === 'TASK_COMPLETED' || eventType === 'TASK_COMPLETE') {
-            setMessages((prev) => [
-              ...prev,
-              { id: 'done', type: 'result', content: 'Workflow execution finished.' },
-            ]);
+            setEvents((prev) => [...prev, newEvent]);
             setRunState('completed');
             ctrl.abort();
             return;
           }
 
           if (eventType === 'TASK_FAILED') {
-            const errMsg = data.error || data.message || 'Execution failed';
-            setMessages((prev) => [
-              ...prev,
-              { id: `err-${Date.now()}`, type: 'system', content: `Error: ${errMsg}` },
-            ]);
+            newEvent.error = (payload.error as string) || (data.message as string) || 'Execution failed';
+            setEvents((prev) => [...prev, newEvent]);
             setRunState('error');
             ctrl.abort();
             return;
           }
 
-          const nodeId = data.nodeId as string | undefined;
-          const status = data.status as string | undefined;
-          const content = data.message || data.content || JSON.stringify(data);
-
-          if (nodeId && status) {
-            setNodeState(nodeId, { status, triggerType: 'execution' });
-            focusNode(nodeId);
-          }
-
-          setMessages((prev) => [
-            ...prev,
-            {
-              id: `sse-${Date.now()}-${Math.random()}`,
-              type: nodeId ? 'node' : 'system',
-              content: String(content),
-              nodeId,
-              status,
-            },
-          ]);
+          setEvents((prev) => [...prev, newEvent]);
         } catch { /* skip unparseable frames */ }
       },
       onclose() {
@@ -149,10 +162,13 @@ export default function RunDrawer({ workflowId, canvasRef }: RunDrawerProps) {
       },
       onerror(err) {
         if (ctrl.signal.aborted) return;
-        setMessages((prev) => [
-          ...prev,
-          { id: `err-${Date.now()}`, type: 'system', content: `SSE error: ${err instanceof Error ? err.message : 'Connection lost'}` },
-        ]);
+        setEvents((prev) => [...prev, {
+          id: `err-${Date.now()}`,
+          eventType: 'ERROR',
+          timestamp: new Date().toISOString(),
+          payload: {},
+          error: err instanceof Error ? err.message : 'Connection lost',
+        }]);
         setRunState('error');
         ctrl.abort();
         throw err;
@@ -166,7 +182,7 @@ export default function RunDrawer({ workflowId, canvasRef }: RunDrawerProps) {
     setDepsChecked(true);
     clearAllNodeStates();
     setRunState('running');
-    setMessages([{ id: 'start', type: 'system', content: 'Test run starting...' }]);
+    setEvents([]);
 
     try {
       const result = await testRunMutation.mutateAsync({
@@ -174,25 +190,27 @@ export default function RunDrawer({ workflowId, canvasRef }: RunDrawerProps) {
         message: testMessage.trim() || undefined,
         modelId: selectedModelId || undefined,
       });
-      subscribeSSE(result.taskId, result.sessionId);
+      subscribeSSE(result.taskId);
     } catch (err) {
-      setMessages((prev) => [
-        ...prev,
-        { id: 'fail', type: 'system', content: `Failed to start: ${err instanceof Error ? err.message : String(err)}` },
-      ]);
+      setEvents([{
+        id: `err-${Date.now()}`,
+        eventType: 'ERROR',
+        timestamp: new Date().toISOString(),
+        payload: {},
+        error: `Failed to start: ${err instanceof Error ? err.message : String(err)}`,
+      }]);
       setRunState('error');
     }
-  }, [workflowId, testMessage, testRunMutation, clearAllNodeStates, subscribeSSE]);
+  }, [workflowId, testMessage, selectedModelId, testRunMutation, clearAllNodeStates, subscribeSSE]);
 
   const handleStop = useCallback(() => {
     abortRef.current?.abort();
     setRunState('idle');
-    setMessages((prev) => [...prev, { id: 'abort', type: 'system', content: 'Execution stopped.' }]);
   }, []);
 
   const handleReset = useCallback(() => {
     clearAllNodeStates();
-    setMessages([]);
+    setEvents([]);
     setRunState('idle');
     setTestMessage('');
     setSelectedModelId('');
@@ -202,7 +220,7 @@ export default function RunDrawer({ workflowId, canvasRef }: RunDrawerProps) {
     abortRef.current?.abort();
     clearAllNodeStates();
     closeRunDrawer();
-    setMessages([]);
+    setEvents([]);
     setRunState('idle');
     setDepsChecked(false);
     setTestMessage('');
@@ -233,45 +251,22 @@ export default function RunDrawer({ workflowId, canvasRef }: RunDrawerProps) {
 
           {/* ─── Run Tab ─── */}
           <TabsContent value="run" className="flex-1 flex flex-col min-h-0 mt-0">
-            <div className="flex-1 overflow-auto p-4 space-y-2 min-h-0">
-              {messages.length === 0 && (
-                <p className="text-sm text-muted-foreground text-center py-8">
-                  Run the current workflow definition for testing and debugging.
-                </p>
-              )}
-              {messages.map((msg) => (
-                <div
-                  key={msg.id}
-                  className={`rounded-lg px-3 py-2 text-sm ${
-                    msg.type === 'user'
-                      ? 'bg-primary text-primary-foreground ml-8'
-                      : msg.type === 'system'
-                      ? 'bg-muted text-muted-foreground text-xs'
-                      : msg.type === 'result'
-                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                      : msg.status === 'error' || msg.status === 'failed'
-                      ? 'bg-destructive/10 text-destructive'
-                      : msg.status === 'complete' || msg.status === 'completed'
-                      ? 'bg-secondary'
-                      : msg.status === 'skipped'
-                      ? 'bg-amber-50 text-amber-700 border border-amber-200'
-                      : 'bg-secondary/50 text-muted-foreground'
-                  }`}
-                >
-                  {msg.content}
-                </div>
-              ))}
-              <div ref={messagesEndRef} />
+            <div className="flex-1 overflow-auto p-4 min-h-0">
+              <ExecutionTimeline events={events} onNodeClick={focusNode} />
+              <div ref={scrollRef} />
             </div>
 
             <div className="border-t p-4 space-y-3 shrink-0">
               {runState === 'idle' && (
                 <div className="space-y-2">
-                  <Select value={selectedModelId} onValueChange={setSelectedModelId}>
+                  <Select value={selectedModelId || '__auto__'} onValueChange={(v) => setSelectedModelId(v === '__auto__' ? '' : v)}>
                     <SelectTrigger className="h-8 text-xs">
-                      <SelectValue placeholder={modelsLoading ? 'Loading models...' : 'Auto (default model)'} />
+                      <SelectValue placeholder={modelsLoading ? 'Loading models...' : 'Auto'} />
                     </SelectTrigger>
                     <SelectContent>
+                      <SelectItem value="__auto__" className="text-xs">
+                        Auto (server decides)
+                      </SelectItem>
                       {models.map((m) => (
                         <SelectItem key={m.id} value={m.modelId} className="text-xs">
                           {m.displayName || m.modelId}

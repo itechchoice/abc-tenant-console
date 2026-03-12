@@ -1,6 +1,6 @@
-import { memo, useMemo } from 'react';
+import { memo, useCallback, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Wrench, GitBranch, Sparkles } from 'lucide-react';
+import { Wrench, GitBranch, Sparkles, Copy, Check } from 'lucide-react';
 import { useWorkflowRuntimeStore } from '@/stores/workflowRuntimeStore';
 import { InteractionForm } from '@/components/GenerativeUI/InteractionForm';
 import { MarkdownMessage } from '@/components/GenerativeUI/MarkdownMessage';
@@ -41,6 +41,31 @@ function CapabilityTags({ capabilities }: { capabilities: string[] }) {
         </span>
       ))}
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Copy button — visible on hover via CSS `group`
+// ---------------------------------------------------------------------------
+
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = useCallback(() => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    });
+  }, [text]);
+
+  return (
+    <button
+      type="button"
+      onClick={handleCopy}
+      className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded-md text-muted-foreground/50 hover:text-muted-foreground hover:bg-muted"
+    >
+      {copied ? <Check size={13} /> : <Copy size={13} />}
+    </button>
   );
 }
 
@@ -111,7 +136,7 @@ export const MessageRow = memo(({ msg, onInteractionSubmit }: MessageRowProps) =
   const isUser = msg.role === 'user';
 
   return (
-    <div id={`message-${msg.id}`}>
+    <div id={`message-${msg.id}`} className="group">
       <motion.div
         variants={bubbleVariants}
         initial="hidden"
@@ -123,33 +148,39 @@ export const MessageRow = memo(({ msg, onInteractionSubmit }: MessageRowProps) =
       >
         <ChatAvatar author={msg.role} />
 
-        <div
-          className={cn(
-            'max-w-[75%] rounded-2xl px-4 py-2.5',
-            isUser
-              ? 'rounded-tr-sm bg-primary text-primary-foreground'
-              : 'rounded-tl-sm bg-muted text-foreground',
-          )}
-        >
-          {!isUser && msg.status === 'streaming' && workflowPhase === 'live' && (
-            <div className="mb-2 inline-flex items-center gap-1 rounded-full border border-foreground/10 bg-background/70 px-2 py-1 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground/80">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              {workflowStatus === 'waiting' ? 'Waiting in canvas' : 'Live in canvas'}
-            </div>
-          )}
+        <div className={cn('flex flex-col', isUser ? 'items-end' : 'items-start')}>
+          <div
+            className={cn(
+              'max-w-[75%] rounded-2xl px-4 py-2.5',
+              isUser
+                ? 'rounded-tr-sm bg-primary text-primary-foreground'
+                : 'rounded-tl-sm bg-muted text-foreground',
+            )}
+          >
+            {!isUser && msg.status === 'streaming' && workflowPhase === 'live' && (
+              <div className="mb-2 inline-flex items-center gap-1 rounded-full border border-foreground/10 bg-background/70 px-2 py-1 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground/80">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                {workflowStatus === 'waiting' ? 'Waiting in canvas' : 'Live in canvas'}
+              </div>
+            )}
 
-          {isUser ? (
-            <>
-              <p className="whitespace-pre-wrap text-sm leading-relaxed">
-                {msg.content}
-              </p>
-              {Array.isArray(msg.metadata?.capabilities) && msg.metadata.capabilities.length > 0 && (
-                <CapabilityTags capabilities={msg.metadata.capabilities as string[]} />
-              )}
-            </>
-          ) : (
-            <MarkdownMessage content={msg.content} />
-          )}
+            {isUser ? (
+              <>
+                <p className="whitespace-pre-wrap text-sm leading-relaxed">
+                  {msg.content}
+                </p>
+                {Array.isArray(msg.metadata?.capabilities) && msg.metadata.capabilities.length > 0 && (
+                  <CapabilityTags capabilities={msg.metadata.capabilities as string[]} />
+                )}
+              </>
+            ) : (
+              <MarkdownMessage content={msg.content} />
+            )}
+          </div>
+
+          <div className="mt-0.5 h-6 flex items-center px-1">
+            <CopyButton text={msg.content} />
+          </div>
         </div>
       </motion.div>
     </div>
