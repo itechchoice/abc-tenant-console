@@ -114,3 +114,34 @@ export async function testAdminConnection(
   );
   return unwrap(res);
 }
+
+// ---------------------------------------------------------------------------
+// Fetch server info + connection status by serverCodes (batch)
+// GET /mcp/user/connections/servers/by-codes?serverCodes=code1,code2
+// ---------------------------------------------------------------------------
+
+export interface ServerByCode {
+  serverId: number | string;
+  serverCode: string;
+  serverName?: string;
+  serverDescription?: string;
+  icon?: string;
+  runtimeMode?: string;
+  supportsStreaming?: boolean;
+  categories?: string[];
+  connectionId?: number | string;
+  connectionName?: string;
+  authType?: string;
+  connectionStatus?: 'ACTIVE' | 'DISABLED' | 'PENDING';
+  isTest?: boolean;
+  connectedAt?: string;
+  connectionUpdatedAt?: string;
+}
+
+export async function fetchServersByCode(serverCodes: string[]): Promise<ServerByCode[]> {
+  const res: ApiResponse<ServerByCode[]> = await mcpApiClient.post(
+    '/mcp/user/connections/servers/by-codes',
+     serverCodes,
+  );
+  return unwrap(res);
+}
