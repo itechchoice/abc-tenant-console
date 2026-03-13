@@ -17,7 +17,7 @@
     "@ant-design/x": "^2.3.0",
     "@ant-design/x-markdown": "^2.3.0",
     "@hookform/resolvers": "^5.2.2",
-    "@itechchoice/mcp-fe-shared": "2.0.0-abc.1",
+    "@itechchoice/mcp-fe-shared": "2.0.0-abc.3",
     "@microsoft/fetch-event-source": "^2.0.1",
     "@monaco-editor/react": "^4.7.0",
     "@tanstack/react-query": "^5.90.21",
@@ -38,11 +38,9 @@
     "react-dom": "^18.3.1",
     "react-easy-crop": "^5.5.6",
     "react-hook-form": "^7.71.2",
-    "react-markdown": "^10.1.0",
     "react-router-dom": "^7.13.1",
     "react-syntax-highlighter": "^16.1.1",
     "recharts": "^3.8.0",
-    "remark-gfm": "^4.0.1",
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.5.0",
     "zod": "^4.3.6",
@@ -67,7 +65,8 @@
   "pnpm": {
     "onlyBuiltDependencies": [
       "esbuild"
-    ]
+    ],
+    "overrides": {}
   },
   "lint-staged": {
     "**/*.{js,jsx}": "eslint --fix --max-warnings=0"
